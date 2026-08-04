@@ -1,18 +1,19 @@
 from flask import Flask, request, jsonify
-import ollama
-
+from ollama import Client
+import os
 
 app = Flask(__name__)
 
+client = Client(
+    host=os.getenv("OLLAMA_HOST", "http://ollama:11434")
+)
 
 @app.route("/chat", methods=["POST"])
 def chat():
-
     data = request.json
-
     user_message = data["message"]
 
-    response = ollama.chat(
+    response = client.chat(
         model="llama3.2",
         messages=[
             {
@@ -22,15 +23,9 @@ def chat():
         ]
     )
 
-    answer = response["message"]["content"]
-
     return jsonify({
-        "answer": answer
+        "answer": response["message"]["content"]
     })
 
-
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000
-    )
+    app.run(host="0.0.0.0", port=5000)
