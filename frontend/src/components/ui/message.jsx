@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { cn } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 
 function MessageGroup({
   className,
@@ -91,6 +91,47 @@ function MessageFooter({
   );
 }
 
+// Composed, ready-to-use chat bubble built from the primitives above.
+// This is what ChatWindow actually needs: pass it a `message` object
+// shaped like { id, role, content, attachments, createdAt }.
+function ChatMessage({
+  message,
+  className,
+  ...props
+}) {
+  const align = message.role === "user" ? "end" : "start"
+
+  return (
+    <Message align={align} className={className} {...props}>
+      <MessageAvatar>
+        {message.role === "user" ? "U" : "AI"}
+      </MessageAvatar>
+      <MessageContent>
+        {message.attachments?.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {message.attachments.map((file) => (
+              <div
+                key={file.id}
+                className="rounded-md border bg-muted px-2 py-1 text-xs"
+              >
+                {file.name}
+              </div>
+            ))}
+          </div>
+        )}
+        {message.content && (
+          <div className="rounded-2xl bg-muted px-4 py-2 text-sm whitespace-pre-wrap">
+            {message.content}
+          </div>
+        )}
+        {message.createdAt && (
+          <MessageFooter>{message.createdAt}</MessageFooter>
+        )}
+      </MessageContent>
+    </Message>
+  );
+}
+
 export {
   MessageGroup,
   Message,
@@ -98,4 +139,5 @@ export {
   MessageContent,
   MessageFooter,
   MessageHeader,
+  ChatMessage,
 }
