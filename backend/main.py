@@ -68,6 +68,39 @@ def chat():
         mimetype="text/event-stream"
     )
 
+@app.route("/health", methods=["GET"])
+def health():
+    try:
+        models = client.list()
+
+        model_names = [
+            model.model
+            for model in models.models
+        ]
+
+        if "llama3.2:latest" not in model_names:
+            return {
+                "status": "error",
+                "flask": "ok",
+                "ollama": "ok",
+                "model": "llama3.2 not found"
+            }, 503
+
+        return {
+            "status": "ok",
+            "flask": "ok",
+            "ollama": "ok",
+            "model": "llama3.2"
+        }, 200
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "flask": "ok",
+            "ollama": "error",
+            "error": str(e)
+        }, 503
+
 if __name__ == "__main__":
 
     app.run(
