@@ -1,42 +1,32 @@
 import { useState, useRef } from "react"
-
 import "./App.css"
 
 import { Button } from "@/components/ui/button"
-
 import { Textarea } from "@/components/ui/textarea"
-
 import { ArrowUpIcon, Sparkles, Paperclip, X, FileText, Square } from "lucide-react"
 
-
 import {
-        MessageScroller,
-        MessageScrollerButton,
-        MessageScrollerContent,
-        MessageScrollerItem,
-        MessageScrollerProvider,
-        MessageScrollerViewport,
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 
-      // raspunsul fake
-        const SAMPLE_BOT_RESPONSE =
-        "Deocamdata nu iti pot raspunde deoarece nu mi-am gasit adevaratul potential"
+const SAMPLE_BOT_RESPONSE =
+  "Deocamdata nu iti pot raspunde deoarece nu mi-am gasit adevaratul potential"
 
 export default function App() {
-         const [messages, setMessages] = useState([])
-         const [text, setText] = useState("")
-         const [attachments, setAttachments] = useState([])
+  const [messages, setMessages] = useState([])
+  const [text, setText] = useState("")
+  const [attachments, setAttachments] = useState([])
   
-  // Stări și referințe pentru procesul de streaming/typing
   const [isGenerating, setIsGenerating] = useState(false)
   
-  // Referințe distincte pentru temporizator (Thinking) și interval (Streaming)
   const timeoutRef = useRef(null)
   const intervalRef = useRef(null)
-  
-  // Referință pentru a reține ID-ul mesajului botului aflat în generare
   const currentBotMsgIdRef = useRef(null)
-
   const fileInputRef = useRef(null)
 
   const handleFileChange = (e) => {
@@ -58,21 +48,17 @@ export default function App() {
     setAttachments((prev) => prev.filter((file) => file.id !== idToRemove))
   }
 
-  // Funcție pentru oprirea generării
   const handleStop = () => {
-    // 1. Oprim timeout-ul de 2 secunde (faza "Thinking...")
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
     }
 
-    // 2. Oprim intervalul de scriere (faza de streaming)
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
 
-    // 3. Ștergem mesajul generat de bot
     if (currentBotMsgIdRef.current) {
       const idToRemove = currentBotMsgIdRef.current
       setMessages((prev) => prev.filter((msg) => msg.id !== idToRemove))
@@ -82,7 +68,6 @@ export default function App() {
     setIsGenerating(false)
   }
 
-  // Simulator pentru streaming-ul răspunsului botului cu pauză de "Thinking..."
   const simulateBotResponse = () => {
     setIsGenerating(true)
 
@@ -93,9 +78,8 @@ export default function App() {
     })
 
     const botMsgId = `msg_bot_${Date.now()}`
-    currentBotMsgIdRef.current = botMsgId // Salvăm ID-ul mesajului curent
+    currentBotMsgIdRef.current = botMsgId
 
-    // 1. Adăugăm un mesaj inițial de la bot cu textul "Thinking..."
     setMessages((prev) => [
       ...prev,
       {
@@ -106,11 +90,9 @@ export default function App() {
       },
     ])
 
-    // 2. Salvăm timeout-ul în timeoutRef
     timeoutRef.current = setTimeout(() => {
-      timeoutRef.current = null // Curățăm referința după expunerea celor 2 secunde
+      timeoutRef.current = null
 
-      // Ștergem "Thinking..." pentru a începe streaming-ul de la zero
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === botMsgId ? { ...msg, content: "" } : msg
@@ -120,7 +102,6 @@ export default function App() {
       const words = SAMPLE_BOT_RESPONSE.split(" ")
       let currentWordIndex = 0
 
-      // 3. Salvăm intervalul de streaming în intervalRef
       intervalRef.current = setInterval(() => {
         if (currentWordIndex < words.length) {
           const nextWord = words[currentWordIndex]
@@ -140,10 +121,9 @@ export default function App() {
 
           currentWordIndex++
         } else {
-          // Am terminat de generat tot textul
           clearInterval(intervalRef.current)
           intervalRef.current = null
-          currentBotMsgIdRef.current = null // Resetăm referința după finalizare
+          currentBotMsgIdRef.current = null
           setIsGenerating(false)
         }
       }, 100)
@@ -151,7 +131,6 @@ export default function App() {
   }
 
   const handleSend = () => {
-    // Dacă botul scrie și apăsăm pe buton, oprim generarea
     if (isGenerating) {
       handleStop()
       return
@@ -177,7 +156,6 @@ export default function App() {
     setText("")
     setAttachments([])
 
-    // Lansăm răspunsul botului după un scurt delay
     setTimeout(() => {
       simulateBotResponse()
     }, 300)
@@ -194,7 +172,7 @@ export default function App() {
 
   return (
     <div className="w-full max-w-4xl mx-auto h-[650px] border rounded-2xl p-6 bg-background flex flex-col justify-between gap-4 my-8 shadow-md">
-      {/* --- HEADER --- */}
+      {/* HEADER */}
       <div className="flex items-center justify-between pb-4 border-b">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-primary/10 rounded-xl text-primary flex items-center justify-center">
@@ -210,7 +188,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Badge status */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border">
           <span
             className={`size-2 rounded-full ${
@@ -221,7 +198,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* --- ZONA MESAJE --- */}
+      {/* CHAT MESSAGES */}
       <MessageScrollerProvider>
         <MessageScroller className="h-full">
           <MessageScrollerViewport>
@@ -246,7 +223,6 @@ export default function App() {
                           : "mr-auto bg-muted text-muted-foreground rounded-bl-none"
                       }`}
                     >
-                      {/* Vizualizare fișiere în bula de chat */}
                       {message.attachments && message.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-2">
                           {message.attachments.map((file) => (
@@ -273,7 +249,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Textul mesajului */}
                       {message.content && (
                         <p className={`whitespace-pre-wrap leading-relaxed ${message.content === "Thinking..." ? "italic opacity-60 animate-pulse" : ""}`}>
                           {message.content}
@@ -293,9 +268,8 @@ export default function App() {
         </MessageScroller>
       </MessageScrollerProvider>
 
-      {/* --- INPUT AREA UNIFICAT --- */}
+      {/* INPUT AREA */}
       <div className="relative w-full border rounded-xl bg-background p-2 focus-within:ring-1 focus-within:ring-ring">
-        {/* Lista de fișiere previzualizate înainte de trimitere */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 p-2 border-b mb-2">
             {attachments.map((file) => (
@@ -329,7 +303,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Zona de introducere text */}
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -343,7 +316,6 @@ export default function App() {
           className="w-full min-h-[50px] max-h-[120px] resize-none text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-1 disabled:opacity-50 disabled:cursor-not-allowed"
         />
 
-        {/* Element HTML ascuns pentru selectarea fișierelor */}
         <input
           type="file"
           ref={fileInputRef}
@@ -353,7 +325,6 @@ export default function App() {
           accept="image/*,.pdf,.doc,.docx,.txt"
         />
 
-        {/* Bara de acțiuni (Paperclip + Trimite / Stop) */}
         <div className="flex items-center justify-between pt-2 border-t">
           <Button
             type="button"
@@ -367,7 +338,6 @@ export default function App() {
             <span className="sr-only">Atașează fișiere</span>
           </Button>
 
-          {/* Butonul dinamic: Trimite când e liber, Stop când botul generează */}
           {isGenerating ? (
             <Button
               type="button"
