@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+textarea {
+    width: 500px;
+    height: 120px;
+    padding: 15px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    resize: none;
+    outline: none;
+}
+
+</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hababas AI</title>
+</head>
+<body>
+
+    <h1>hababas AI:</h1>
+    <p>chat with the one and only Hababas!</p>
+    <textarea placeholder="Talk to hababas the king"></textarea>
+    <button id="sendButton">Send your message to habbabaas</button>
+</body>
+</html>

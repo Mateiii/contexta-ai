@@ -1,14 +1,17 @@
 from flask import Flask, Response, request
+from flask_cors import CORS
 from ollama import Client
 import json
 import os
 
 
 app = Flask(__name__)
+CORS(app)
 
 
 client = Client(
-    host=os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    host=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+    timeout=5
 )
 
 

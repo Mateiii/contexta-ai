@@ -1,3 +1,4 @@
 flask
 ollama
 requests
+flask_cors
