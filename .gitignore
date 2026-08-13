@@ -1,0 +1,9 @@
+# Materiale doar pentru mentor — nu se urcă în repo.
+# mentor-notes conține implementarea de referință (adică soluțiile).
+# concepte-explicate este ghidul teoretic al mentorului.
+mentor-notes-week-2.pdf
+concepte-explicate.pdf
+
+# Sursele markdown ale ghidurilor și scriptul de build rămân locale.
+# Ghidurile se distribuie ca PDF.
+guides/
