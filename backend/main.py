@@ -1,14 +1,17 @@
 from flask import Flask, Response, request
+from flask_cors import CORS
 from ollama import Client
 import json
 import os
 
 
 app = Flask(__name__)
+CORS(app)
 
 
 client = Client(
-    host=os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    host=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+    timeout=5
 )
 
 
@@ -67,6 +70,39 @@ def chat():
         generate(),
         mimetype="text/event-stream"
     )
+
+@app.route("/health", methods=["GET"])
+def health():
+    try:
+        models = client.list()
+
+        model_names = [
+            model.model
+            for model in models.models
+        ]
+
+        if "llama3.2:latest" not in model_names:
+            return {
+                "status": "error",
+                "flask": "ok",
+                "ollama": "ok",
+                "model": "llama3.2 not found"
+            }, 503
+
+        return {
+            "status": "ok",
+            "flask": "ok",
+            "ollama": "ok",
+            "model": "llama3.2"
+        }, 200
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "flask": "ok",
+            "ollama": "error",
+            "error": str(e)
+        }, 503
 
 if __name__ == "__main__":
 
