@@ -16,7 +16,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Culori Light Mode (Shadcn Standard) */
+  /* Light mode palette (shadcn defaults) */
   --background: oklch(1 0 0);
   --foreground: oklch(0.147 0.004 49.3);
   --card: oklch(1 0 0);
@@ -41,12 +41,11 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #f9fafb; /* Un fundal ușor gri deschis pentru contrast */
+  background-color: #f9fafb;
   color: #111827;
   min-height: 100vh;
 }
 
-/* Am eliminat width: 1126px și text-align: center care stricau layout-ul */
 #root {
   width: 100%;
   min-height: 100vh;
