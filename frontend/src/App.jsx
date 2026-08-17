@@ -1,4 +1,3 @@
-import "./App.css"
 import { ChatWindow } from "@/components/ui/chat-window"
 
 export default function App() {
