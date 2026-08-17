@@ -13,10 +13,5 @@ createRoot(document.getElementById("root")).render(
       <App />
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
-<<<<<<< HEAD
   </StrictMode>,
 )
-=======
-  </StrictMode>
-)
->>>>>>> efcc16e (remade frontend)
