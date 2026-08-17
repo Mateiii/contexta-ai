@@ -1,22 +1,19 @@
-import { useState, useRef } from "react"
+import { useRef, useState } from "react"
+import { ArrowUpIcon, FileText, Paperclip, Sparkles, Square, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowUpIcon, Sparkles, Paperclip, X, FileText, Square } from "lucide-react"
-
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@/components/ui/message-scroller"
-
+import { MessageList } from "@/components/ui/message-list"
 import { StatusBadge } from "@/components/ui/status-badge"
-import { ChatMessage } from "@/components/ui/message"
 
 const SAMPLE_BOT_RESPONSE =
   "Deocamdata nu iti pot raspunde deoarece nu mi-am gasit adevaratul potential"
+const THINKING_DELAY_MS = 2500 // pause before the bot "starts typing"
+const WORD_STREAM_MS = 100 // delay between each streamed word
+
+function formatTime() {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+}
 
 export function ChatWindow() {
   const [messages, setMessages] = useState([])
@@ -24,222 +21,145 @@ export function ChatWindow() {
   const [attachments, setAttachments] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
 
-  const timeoutRef = useRef(null)
-  const intervalRef = useRef(null)
-  const currentBotMsgIdRef = useRef(null)
+  // Refs so handleStop can cancel whatever the bot-response simulation
+  // has in flight, regardless of which stage it's in.
+  const thinkingTimeout = useRef(null)
+  const streamInterval = useRef(null)
+  const pendingBotMessageId = useRef(null)
   const fileInputRef = useRef(null)
 
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files || [])
+  // ---------- attachments ----------
+
+  function addFiles(fileList) {
+    const files = Array.from(fileList || [])
     if (!files.length) return
 
     const newAttachments = files.map((file) => ({
-      id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       name: file.name,
       type: file.type,
       url: URL.createObjectURL(file),
     }))
 
     setAttachments((prev) => [...prev, ...newAttachments])
-    e.target.value = ""
   }
 
-  const handleRemoveAttachment = (idToRemove) => {
-    setAttachments((prev) => prev.filter((file) => file.id !== idToRemove))
+  function removeAttachment(id) {
+    setAttachments((prev) => prev.filter((file) => file.id !== id))
   }
 
-  const handleStop = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
+  // ---------- simulated bot response ----------
+  // Stands in for a real backend call: shows "Thinking...", then
+  // streams a canned reply one word at a time.
 
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-
-    if (currentBotMsgIdRef.current) {
-      const idToRemove = currentBotMsgIdRef.current
-      setMessages((prev) => prev.filter((msg) => msg.id !== idToRemove))
-      currentBotMsgIdRef.current = null
-    }
-
-    setIsGenerating(false)
-  }
-
-  const simulateBotResponse = () => {
+  function startBotResponse() {
     setIsGenerating(true)
 
-    const now = new Date()
-    const formattedTime = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-
-    const botMsgId = `msg_bot_${Date.now()}`
-    currentBotMsgIdRef.current = botMsgId
+    const botMessageId = `msg_bot_${Date.now()}`
+    pendingBotMessageId.current = botMessageId
 
     setMessages((prev) => [
       ...prev,
-      {
-        id: botMsgId,
-        role: "assistant",
-        content: "Thinking...",
-        createdAt: formattedTime,
-      },
+      { id: botMessageId, role: "assistant", content: "Thinking...", createdAt: formatTime() },
     ])
 
-    timeoutRef.current = setTimeout(() => {
-      timeoutRef.current = null
-
+    thinkingTimeout.current = setTimeout(() => {
+      thinkingTimeout.current = null
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === botMsgId ? { ...msg, content: "" } : msg))
+        prev.map((msg) => (msg.id === botMessageId ? { ...msg, content: "" } : msg))
       )
-
-      const words = SAMPLE_BOT_RESPONSE.split(" ")
-      let currentWordIndex = 0
-
-      intervalRef.current = setInterval(() => {
-        if (currentWordIndex < words.length) {
-          const nextWord = words[currentWordIndex]
-
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === botMsgId
-                ? {
-                    ...msg,
-                    content: msg.content ? `${msg.content} ${nextWord}` : nextWord,
-                  }
-                : msg
-            )
-          )
-
-          currentWordIndex++
-        } else {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
-          currentBotMsgIdRef.current = null
-          setIsGenerating(false)
-        }
-      }, 100)
-    }, 2500)
+      streamWords(botMessageId)
+    }, THINKING_DELAY_MS)
   }
 
-  const handleSend = () => {
+  function streamWords(botMessageId) {
+    const words = SAMPLE_BOT_RESPONSE.split(" ")
+    let index = 0
+
+    streamInterval.current = setInterval(() => {
+      if (index >= words.length) {
+        clearInterval(streamInterval.current)
+        streamInterval.current = null
+        pendingBotMessageId.current = null
+        setIsGenerating(false)
+        return
+      }
+
+      const nextWord = words[index]
+      index += 1
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === botMessageId
+            ? { ...msg, content: msg.content ? `${msg.content} ${nextWord}` : nextWord }
+            : msg
+        )
+      )
+    }, WORD_STREAM_MS)
+  }
+
+  function stopBotResponse() {
+    if (thinkingTimeout.current) {
+      clearTimeout(thinkingTimeout.current)
+      thinkingTimeout.current = null
+    }
+    if (streamInterval.current) {
+      clearInterval(streamInterval.current)
+      streamInterval.current = null
+    }
+    if (pendingBotMessageId.current) {
+      const idToRemove = pendingBotMessageId.current
+      setMessages((prev) => prev.filter((msg) => msg.id !== idToRemove))
+      pendingBotMessageId.current = null
+    }
+    setIsGenerating(false)
+  }
+
+  // ---------- send ----------
+
+  function handleSend() {
     if (isGenerating) {
-      handleStop()
+      stopBotResponse()
       return
     }
-
     if (!text.trim() && attachments.length === 0) return
 
-    const now = new Date()
-    const formattedTime = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-
-    const userMessage = {
-      id: `msg_${Date.now()}`,
-      role: "user",
-      content: text,
-      attachments: attachments,
-      createdAt: formattedTime,
-    }
-
-    setMessages((prev) => [...prev, userMessage])
+    setMessages((prev) => [
+      ...prev,
+      { id: `msg_${Date.now()}`, role: "user", content: text, attachments, createdAt: formatTime() },
+    ])
     setText("")
     setAttachments([])
 
-    setTimeout(() => {
-      simulateBotResponse()
-    }, 300)
+    setTimeout(startBotResponse, 300)
   }
 
-  const handleKeyDown = (e) => {
+  function handleKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      if (!isGenerating) {
-        handleSend()
-      }
+      if (!isGenerating) handleSend()
     }
   }
 
-  return (
-    <div className="w-full max-w-4xl mx-auto h-[650px] border rounded-2xl p-6 bg-background flex flex-col justify-between gap-4 my-8 shadow-md">
-      {/* HEADER */}
-      <div className="flex items-center justify-between pb-4 border-b">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-primary/10 rounded-xl text-primary flex items-center justify-center">
-            <Sparkles className="size-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              Contexta
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Instant answers and insights from your documents
-            </p>
-          </div>
-        </div>
+  const canSend = text.trim() || attachments.length > 0
 
-        <StatusBadge isGenerating={isGenerating} />
+  // ---------- render ----------
+
+  return (
+    <div className="mx-auto my-8 flex h-[650px] w-full max-w-4xl flex-col justify-between gap-4 rounded-2xl border bg-background p-6 shadow-md">
+      <Header isGenerating={isGenerating} />
+
+      <div className="min-h-0 flex-1">
+        <MessageList messages={messages} />
       </div>
 
-      {/* CHAT MESSAGES */}
-      <MessageScrollerProvider>
-        <MessageScroller className="h-full">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="flex flex-col gap-3 p-2">
-              {messages.length === 0 ? (
-                <div className="flex flex-col h-full items-center justify-center text-muted-foreground text-sm py-24 gap-2">
-                  <Sparkles className="size-8 opacity-40" />
-                </div>
-              ) : (
-                messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))
-              )}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton />
-        </MessageScroller>
-      </MessageScrollerProvider>
-
-      {/* INPUT AREA */}
-      <div className="relative w-full border rounded-xl bg-background p-2 focus-within:ring-1 focus-within:ring-ring">
+      <div className="relative w-full rounded-xl border bg-background p-2 focus-within:ring-1 focus-within:ring-ring">
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 p-2 border-b mb-2">
-            {attachments.map((file) => (
-              <div
-                key={file.id}
-                className="relative group flex items-center gap-2 bg-muted p-1.5 rounded-lg text-xs pr-7 border"
-              >
-                {file.type.startsWith("image/") ? (
-                  <img
-                    src={file.url}
-                    alt={file.name}
-                    className="size-8 object-cover rounded"
-                  />
-                ) : (
-                  <FileText className="size-4 text-muted-foreground shrink-0" />
-                )}
-                <span className="truncate max-w-[120px] font-medium">
-                  {file.name}
-                </span>
-
-                <button
-                  type="button"
-                  disabled={isGenerating}
-                  onClick={() => handleRemoveAttachment(file.id)}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/20 transition-colors disabled:opacity-50"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
+          <AttachmentStrip
+            attachments={attachments}
+            disabled={isGenerating}
+            onRemove={removeAttachment}
+          />
         )}
 
         <Textarea
@@ -247,31 +167,29 @@ export function ChatWindow() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isGenerating}
-          placeholder={
-            isGenerating
-              ? "Botul răspunde..."
-              : "Ask me anything to expand your mind..."
-          }
-          className="w-full min-h-[50px] max-h-[120px] resize-none text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          placeholder={isGenerating ? "Botul răspunde..." : "Ask me anything to expand your mind..."}
+          className="min-h-[50px] max-h-[120px] p-1"
         />
 
         <input
-          type="file"
           ref={fileInputRef}
-          onChange={handleFileChange}
+          type="file"
           multiple
-          className="hidden"
           accept="image/*,.pdf,.doc,.docx,.txt"
+          onChange={(e) => {
+            addFiles(e.target.files)
+            e.target.value = ""
+          }}
+          className="hidden"
         />
 
-        <div className="flex items-center justify-between pt-2 border-t">
+        <div className="flex items-center justify-between border-t pt-2">
           <Button
-            type="button"
             variant="ghost"
             size="icon"
             disabled={isGenerating}
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-full text-muted-foreground hover:text-foreground size-8 disabled:opacity-40"
+            className="size-8 rounded-full text-muted-foreground hover:text-foreground"
           >
             <Paperclip className="size-4" />
             <span className="sr-only">Atașează fișiere</span>
@@ -279,22 +197,20 @@ export function ChatWindow() {
 
           {isGenerating ? (
             <Button
-              type="button"
-              size="icon"
-              onClick={handleStop}
               variant="destructive"
-              className="rounded-full size-8 shrink-0 animate-pulse"
+              size="icon"
+              onClick={stopBotResponse}
+              className="size-8 shrink-0 animate-pulse rounded-full"
             >
               <Square className="size-3.5 fill-current" />
               <span className="sr-only">Oprește generarea</span>
             </Button>
           ) : (
             <Button
-              type="button"
               size="icon"
               onClick={handleSend}
-              disabled={!text.trim() && attachments.length === 0}
-              className="rounded-full size-8 shrink-0"
+              disabled={!canSend}
+              className="size-8 shrink-0 rounded-full"
             >
               <ArrowUpIcon className="size-4" />
               <span className="sr-only">Trimite</span>
@@ -302,6 +218,54 @@ export function ChatWindow() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function Header({ isGenerating }) {
+  return (
+    <div className="flex items-center justify-between border-b pb-4">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center rounded-xl bg-primary/10 p-2.5 text-primary">
+          <Sparkles className="size-5" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Contexta</h1>
+          <p className="text-xs text-muted-foreground">
+            Instant answers and insights from your documents
+          </p>
+        </div>
+      </div>
+      <StatusBadge isGenerating={isGenerating} />
+    </div>
+  )
+}
+
+function AttachmentStrip({ attachments, disabled, onRemove }) {
+  return (
+    <div className="mb-2 flex flex-wrap gap-2 border-b p-2">
+      {attachments.map((file) => (
+        <div
+          key={file.id}
+          className="group relative flex items-center gap-2 rounded-lg border bg-muted p-1.5 pr-7 text-xs"
+        >
+          {file.type.startsWith("image/") ? (
+            <img src={file.url} alt={file.name} className="size-8 rounded object-cover" />
+          ) : (
+            <FileText className="size-4 shrink-0 text-muted-foreground" />
+          )}
+          <span className="max-w-[120px] truncate font-medium">{file.name}</span>
+
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onRemove(file.id)}
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full p-0.5 transition-colors hover:bg-black/10 disabled:opacity-50 dark:hover:bg-white/20"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ))}
     </div>
   )
 }
