@@ -4,7 +4,8 @@ import ChatTest from "./ChatTest"
 export default function App() {
   return (
     <main className="container mx-auto">
-      <ChatTest />
+      {/* <ChatTest /> */}
+      <ChatWindow />
     </main>
   )
 }
