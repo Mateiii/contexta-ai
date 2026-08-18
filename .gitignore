@@ -7,3 +7,5 @@ concepte-explicate.pdf
 # Sursele markdown ale ghidurilor și scriptul de build rămân locale.
 # Ghidurile se distribuie ca PDF.
 guides/
+
+node_modules/
