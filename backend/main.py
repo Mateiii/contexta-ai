@@ -5,8 +5,15 @@ import json
 import os
 
 
-app = Flask(__name__)
-CORS(app)
+app = Flask(__name__) 
+# Configurare CORS restrictivă - acceptă doar frontend-ul de pe portul 5173
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:5173"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 
 client = Client(
