@@ -1,37 +1,87 @@
 import { useState } from "react"
-import { useMutation } from "@tanstack/react-query"
-import { sendChatMessage } from "./api"
 
 export default function ChatTest() {
   const [input, setInput] = useState("")
   const [response, setResponse] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  // Configurarea mutației
-  const chatMutation = useMutation({
-    mutationFn: ({ message }) =>
-      sendChatMessage({
-        message,
-        onToken: (token) => {
-          // Concatenează fiecare token primit în starea locală
-          setResponse((current) => current + token)
-        },
-      }),
-  })
-
-  function sendMessage() {
-    if (!input.trim() || chatMutation.isPending) {
+  async function sendMessage() {
+    if (!input.trim() || loading) {
       return
     }
 
     setResponse("")
-    
-    // Apelarea mutației
-    chatMutation.mutate({ message: input })
+    setError("")
+    setLoading(true)
+
+    try {
+      const res = await fetch("http://localhost:5000/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: input,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Backend returned ${res.status}`)
+      }
+
+      if (!res.body) {
+        throw new Error("Response does not contain a stream")
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+
+      let buffer = ""
+
+      while (true) {
+        const { value, done } = await reader.read()
+
+        if (done) {
+          break
+        }
+
+        buffer += decoder.decode(value, {
+          stream: true,
+        })
+
+        const events = buffer.split("\n\n")
+
+        buffer = events.pop() || ""
+
+        for (const event of events) {
+          if (!event.startsWith("data: ")) {
+            continue
+          }
+
+          const json = event.slice("data: ".length)
+          const data = JSON.parse(json)
+
+          if (data.type === "token") {
+            setResponse((current) => current + data.content)
+          }
+
+          if (data.type === "done") {
+            console.log("Stream finished")
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div style={{ maxWidth: "700px", margin: "50px auto", padding: "20px" }}>
-      <h1>Chat Streaming Test (React Query)</h1>
+      <h1>Chat Streaming Test</h1>
 
       <textarea
         value={input}
@@ -47,19 +97,18 @@ export default function ChatTest() {
 
       <button
         onClick={sendMessage}
-        disabled={chatMutation.isPending || !input.trim()}
+        disabled={loading || !input.trim()}
         style={{
           marginTop: "10px",
           padding: "10px 20px",
         }}
       >
-        {chatMutation.isPending ? "Generating..." : "Send"}
+        {loading ? "Generating..." : "Send"}
       </button>
 
-      {/* Afișarea erorilor direct din starea furnizată de useMutation */}
-      {chatMutation.isError && (
+      {error && (
         <p style={{ color: "red" }}>
-          Error: {chatMutation.error.message}
+          Error: {error}
         </p>
       )}
 

@@ -18,6 +18,8 @@ export function ChatWindow() {
 
   // Ref pentru mesajul bot actual în curs de stream
   const pendingBotMessageId = useRef(null)
+  const abortControllerRef = useRef(null)
+  const responseTimeoutRef = useRef(null)
   const fileInputRef = useRef(null)
 
   // ---------- attachments ----------
@@ -48,6 +50,8 @@ export function ChatWindow() {
 
     const botMessageId = `msg_bot_${Date.now()}`
     pendingBotMessageId.current = botMessageId
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
 
     // Add initial bot message with "Thinking..."
     setMessages((prev) => [
@@ -61,6 +65,7 @@ export function ChatWindow() {
         headers: {
           "Content-Type": "application/json",
         },
+        signal: abortController.signal,
         body: JSON.stringify({
           message: userMessage,
         }),
@@ -114,6 +119,8 @@ export function ChatWindow() {
         }
       }
     } catch (err) {
+      if (err.name === "AbortError") return
+
       console.error(err)
       setMessages((prev) =>
         prev.map((msg) =>
@@ -123,17 +130,23 @@ export function ChatWindow() {
         )
       )
     } finally {
-      pendingBotMessageId.current = null
-      setIsGenerating(false)
+      if (abortControllerRef.current === abortController) {
+        pendingBotMessageId.current = null
+        abortControllerRef.current = null
+        setIsGenerating(false)
+      }
     }
   }
 
   function stopBotResponse() {
-    if (pendingBotMessageId.current) {
-      const idToRemove = pendingBotMessageId.current
-      setMessages((prev) => prev.filter((msg) => msg.id !== idToRemove))
-      pendingBotMessageId.current = null
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current)
+      responseTimeoutRef.current = null
     }
+
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    pendingBotMessageId.current = null
     setIsGenerating(false)
   }
 
@@ -154,7 +167,10 @@ export function ChatWindow() {
     setText("")
     setAttachments([])
 
-    setTimeout(() => startBotResponse(userMessage), 300)
+    responseTimeoutRef.current = setTimeout(() => {
+      responseTimeoutRef.current = null
+      startBotResponse(userMessage)
+    }, 300)
   }
 
   function handleKeyDown(e) {
