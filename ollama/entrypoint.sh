@@ -9,6 +9,6 @@ until ollama list >/dev/null 2>&1; do
 done
 
 # Download model if it does not exist
-ollama list | grep -q "llama3.2" || ollama pull llama3.2
+ollama list | grep -q "gemma3:12b" || ollama pull gemma3:12b
 
 wait

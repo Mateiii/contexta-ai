@@ -11,7 +11,6 @@ CORS(app, origins="http://localhost:5173")
 
 client = Client(
     host=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
-    timeout=5
 )
 
 
@@ -26,7 +25,7 @@ def chat():
     def generate():
 
         stream = client.chat(
-            model="llama3.2",
+            model="gemma3:12b",
             messages=[
                 {
                     "role": "user",
@@ -81,19 +80,19 @@ def health():
             for model in models.models
         ]
 
-        if "llama3.2:latest" not in model_names:
+        if "gemma3:12b" not in model_names:
             return {
                 "status": "error",
                 "flask": "ok",
                 "ollama": "ok",
-                "model": "llama3.2 not found"
+                "model": "gemma3:12b not found"
             }, 503
 
         return {
             "status": "ok",
             "flask": "ok",
             "ollama": "ok",
-            "model": "llama3.2"
+            "model": "gemma3:12b"
         }, 200
 
     except Exception as e:
