@@ -6,11 +6,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { MessageList } from "@/components/ui/message-list"
 import { StatusBadge } from "@/components/ui/status-badge"
 
-const SAMPLE_BOT_RESPONSE =
-  "Deocamdata nu iti pot raspunde deoarece nu mi-am gasit adevaratul potential"
-const THINKING_DELAY_MS = 2500 // pause before the bot "starts typing"
-const WORD_STREAM_MS = 100 // delay between each streamed word
-
 function formatTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
@@ -21,10 +16,7 @@ export function ChatWindow() {
   const [attachments, setAttachments] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Refs so handleStop can cancel whatever the bot-response simulation
-  // has in flight, regardless of which stage it's in.
-  const thinkingTimeout = useRef(null)
-  const streamInterval = useRef(null)
+  // Ref pentru mesajul bot actual în curs de stream
   const pendingBotMessageId = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -48,65 +40,97 @@ export function ChatWindow() {
     setAttachments((prev) => prev.filter((file) => file.id !== id))
   }
 
-  // ---------- simulated bot response ----------
-  // Stands in for a real backend call: shows "Thinking...", then
-  // streams a canned reply one word at a time.
+  // ---------- real backend communication ----------
+  // Fetches from backend at http://localhost:5000/chat and streams the response
 
-  function startBotResponse() {
+  async function startBotResponse(userMessage) {
     setIsGenerating(true)
 
     const botMessageId = `msg_bot_${Date.now()}`
     pendingBotMessageId.current = botMessageId
 
+    // Add initial bot message with "Thinking..."
     setMessages((prev) => [
       ...prev,
-      { id: botMessageId, role: "assistant", content: "Thinking...", createdAt: formatTime() },
+      { id: botMessageId, role: "assistant", content: "Gândesc...", createdAt: formatTime() },
     ])
 
-    thinkingTimeout.current = setTimeout(() => {
-      thinkingTimeout.current = null
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === botMessageId ? { ...msg, content: "" } : msg))
-      )
-      streamWords(botMessageId)
-    }, THINKING_DELAY_MS)
-  }
+    try {
+      const res = await fetch("http://localhost:5000/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage,
+        }),
+      })
 
-  function streamWords(botMessageId) {
-    const words = SAMPLE_BOT_RESPONSE.split(" ")
-    let index = 0
-
-    streamInterval.current = setInterval(() => {
-      if (index >= words.length) {
-        clearInterval(streamInterval.current)
-        streamInterval.current = null
-        pendingBotMessageId.current = null
-        setIsGenerating(false)
-        return
+      if (!res.ok) {
+        throw new Error(`Backend a returnat ${res.status}`)
       }
 
-      const nextWord = words[index]
-      index += 1
+      if (!res.body) {
+        throw new Error("Răspunsul nu conține un stream")
+      }
 
+      // Clear the "Thinking..." message and start streaming
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === botMessageId
-            ? { ...msg, content: msg.content ? `${msg.content} ${nextWord}` : nextWord }
-            : msg
-        )
+        prev.map((msg) => (msg.id === botMessageId ? { ...msg, content: "" } : msg))
       )
     }, WORD_STREAM_MS)
   }
 
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { value, done } = await reader.read()
+
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split("\n\n")
+        buffer = events.pop() || ""
+
+        for (const event of events) {
+          if (!event.startsWith("data: ")) continue
+
+          const json = event.slice("data: ".length)
+          const data = JSON.parse(json)
+
+          if (data.type === "token") {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === botMessageId
+                  ? { ...msg, content: msg.content + data.content }
+                  : msg
+              )
+            )
+          }
+
+          if (data.type === "done") {
+            console.log("Stream finalizat")
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === botMessageId
+            ? { ...msg, content: `❌ Eroare: ${err.message}` }
+            : msg
+        )
+      )
+    } finally {
+      pendingBotMessageId.current = null
+      setIsGenerating(false)
+    }
+  }
+
   function stopBotResponse() {
-    if (thinkingTimeout.current) {
-      clearTimeout(thinkingTimeout.current)
-      thinkingTimeout.current = null
-    }
-    if (streamInterval.current) {
-      clearInterval(streamInterval.current)
-      streamInterval.current = null
-    }
     if (pendingBotMessageId.current) {
       const idToRemove = pendingBotMessageId.current
       setMessages((prev) => prev.filter((msg) => msg.id !== idToRemove))
@@ -124,14 +148,15 @@ export function ChatWindow() {
     }
     if (!text.trim() && attachments.length === 0) return
 
+    const userMessage = text
     setMessages((prev) => [
       ...prev,
-      { id: `msg_${Date.now()}`, role: "user", content: text, attachments, createdAt: formatTime() },
+      { id: `msg_${Date.now()}`, role: "user", content: userMessage, attachments, createdAt: formatTime() },
     ])
     setText("")
     setAttachments([])
 
-    setTimeout(startBotResponse, 300)
+    setTimeout(() => startBotResponse(userMessage), 300)
   }
 
   function handleKeyDown(e) {
