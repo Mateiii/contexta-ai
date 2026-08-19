@@ -78,8 +78,6 @@ export function ChatWindow() {
       setMessages((prev) =>
         prev.map((msg) => (msg.id === botMessageId ? { ...msg, content: "" } : msg))
       )
-    }, WORD_STREAM_MS)
-  }
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
