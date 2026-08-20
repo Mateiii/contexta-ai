@@ -64,14 +64,37 @@ export function FileSidebar({ collapsed, onCollapse }) {
   // from local state. To add it later, fire your DELETE request here
   // (e.g. fetch(`${BACKEND_URL}/documents/${id}`, { method: "DELETE" }))
   // before the timeout below.
-  function deleteFile(id) {
-    setRemovingId(id)
+  async function deleteFile(id) {
+  setRemovingId(id)
 
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/upload/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      }
+    )
+
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      throw new Error(data.error || `Delete failed (${res.status})`)
+    }
+
+    // Backend successfully deleted the physical file.
     window.setTimeout(() => {
       setFiles((prev) => prev.filter((f) => f.id !== id))
       setRemovingId(null)
     }, 160)
+
+  } catch (err) {
+    console.error("Delete failed:", err)
+    setRemovingId(null)
+
+    // Optional: show a toast/error message here.
+    alert(err.message)
   }
+}
 
   return (
     <div className="neo-sidebar-wrap" data-collapsed={collapsed}>

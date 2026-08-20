@@ -7,12 +7,33 @@ import json
 import os
 
 
+# ============================================================
+# App
+# ============================================================
+
 app = Flask(__name__)
 
-CORS(app, origins="http://localhost:5173")
+
+# ============================================================
+# CORS
+# ============================================================
+
+CORS(
+    app,
+    resources={
+        r"/*": {
+            "origins": ["http://localhost:5173"]
+        }
+    },
+    methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
 
 
+# ============================================================
 # Ollama configuration
+# ============================================================
+
 OLLAMA_HOST = os.getenv(
     "OLLAMA_HOST",
     "http://localhost:11434"
@@ -20,13 +41,15 @@ OLLAMA_HOST = os.getenv(
 
 MODEL = "gemma3:12b"
 
-
 client = Client(
     host=OLLAMA_HOST
 )
 
 
+# ============================================================
 # File upload configuration
+# ============================================================
+
 UPLOAD_FOLDER = "uploads"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -34,9 +57,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 
-# ------------------------------------------------------------
+# ============================================================
 # Chat
-# ------------------------------------------------------------
+# ============================================================
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -49,7 +72,6 @@ def chat():
         }), 400
 
     user_message = data["message"]
-
 
     def generate():
 
@@ -102,21 +124,26 @@ def chat():
                 + "\n\n"
             )
 
-
     return Response(
         generate(),
-        mimetype="text/event-stream"
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
     )
 
 
-# ------------------------------------------------------------
+# ============================================================
 # File upload
-# ------------------------------------------------------------
+# ============================================================
 
 @app.route("/upload", methods=["POST"])
 def upload():
 
     if "file" not in request.files:
+
         return jsonify({
             "error": "No file provided"
         }), 400
@@ -124,6 +151,7 @@ def upload():
     file = request.files["file"]
 
     if file.filename == "":
+
         return jsonify({
             "error": "No file selected"
         }), 400
@@ -131,6 +159,7 @@ def upload():
     filename = secure_filename(file.filename)
 
     if not filename:
+
         return jsonify({
             "error": "Invalid filename"
         }), 400
@@ -140,17 +169,93 @@ def upload():
         filename
     )
 
-    file.save(filepath)
+    try:
 
-    return jsonify({
-        "status": "ok",
-        "filename": filename
-    }), 200
+        file.save(filepath)
+
+        return jsonify({
+            "status": "ok",
+            "filename": filename
+        }), 200
+
+    except OSError as e:
+
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 
-# ------------------------------------------------------------
+# ============================================================
+# File delete
+# ============================================================
+
+@app.route(
+    "/upload/<filename>",
+    methods=["DELETE", "OPTIONS"]
+)
+def delete_file(filename):
+
+    # --------------------------------------------------------
+    # Handle CORS preflight
+    # --------------------------------------------------------
+
+    if request.method == "OPTIONS":
+        return "", 204
+
+    # --------------------------------------------------------
+    # Sanitize filename
+    # --------------------------------------------------------
+
+    filename = secure_filename(filename)
+
+    if not filename:
+        return jsonify({
+            "error": "Invalid filename"
+        }), 400
+
+    # --------------------------------------------------------
+    # Build file path
+    # --------------------------------------------------------
+
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    # --------------------------------------------------------
+    # Check file exists
+    # --------------------------------------------------------
+
+    if not os.path.isfile(filepath):
+
+        return jsonify({
+            "error": "File not found",
+            "filename": filename
+        }), 404
+
+    # --------------------------------------------------------
+    # Delete file
+    # --------------------------------------------------------
+
+    try:
+
+        os.remove(filepath)
+
+        return jsonify({
+            "status": "ok",
+            "filename": filename
+        }), 200
+
+    except OSError as e:
+
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+
+# ============================================================
 # Health check
-# ------------------------------------------------------------
+# ============================================================
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -192,9 +297,14 @@ def health():
         }), 503
 
 
+# ============================================================
+# Run
+# ============================================================
+
 if __name__ == "__main__":
 
     app.run(
         host="0.0.0.0",
-        port=5000
+        port=5000,
+        debug=True
     )
