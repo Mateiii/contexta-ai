@@ -139,6 +139,29 @@ def chat():
 # File upload
 # ============================================================
 
+@app.route("/upload", methods=["GET"])
+def list_files():
+
+    files = []
+
+    for filename in os.listdir(UPLOAD_FOLDER):
+
+        filepath = os.path.join(
+            UPLOAD_FOLDER,
+            filename
+        )
+
+        if os.path.isfile(filepath):
+
+            files.append({
+                "id": filename,
+                "name": filename,
+                "size": os.path.getsize(filepath)
+            })
+
+    return jsonify(files), 200
+
+
 @app.route("/upload", methods=["POST"])
 def upload():
 
