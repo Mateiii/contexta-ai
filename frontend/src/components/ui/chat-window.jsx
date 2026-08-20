@@ -15,15 +15,13 @@ export function ChatWindow() {
   const [text, setText] = useState("")
   const [attachments, setAttachments] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
 
-  // Ref pentru mesajul bot actual în curs de stream
   const pendingBotMessageId = useRef(null)
   const abortControllerRef = useRef(null)
-  const responseTimeoutRef = useRef(null)
   const fileInputRef = useRef(null)
 
-  // ---------- attachments ----------
-
+  // Select files only
   function addFiles(fileList) {
     const files = Array.from(fileList || [])
     if (!files.length) return
@@ -32,31 +30,68 @@ export function ChatWindow() {
       id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       name: file.name,
       type: file.type,
+      file: file,
       url: URL.createObjectURL(file),
     }))
 
     setAttachments((prev) => [...prev, ...newAttachments])
   }
 
+  // Upload all selected files
+  async function uploadFiles() {
+    if (!attachments.length) return
+
+    setIsUploading(true)
+
+    try {
+      for (const attachment of attachments) {
+        const formData = new FormData()
+        formData.append("file", attachment.file)
+
+        const response = await fetch("http://localhost:5000/upload", {
+          method: "POST",
+          body: formData,
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || "Upload failed")
+        }
+
+        console.log("Uploaded:", data.filename)
+      }
+
+      alert("Files uploaded successfully")
+    } catch (error) {
+      console.error(error)
+      alert(error.message)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
   function removeAttachment(id) {
     setAttachments((prev) => prev.filter((file) => file.id !== id))
   }
-
-  // ---------- real backend communication ----------
-  // Fetches from backend at http://localhost:5000/chat and streams the response
 
   async function startBotResponse(userMessage) {
     setIsGenerating(true)
 
     const botMessageId = `msg_bot_${Date.now()}`
     pendingBotMessageId.current = botMessageId
+
     const abortController = new AbortController()
     abortControllerRef.current = abortController
 
-    // Add initial bot message with "Thinking..."
     setMessages((prev) => [
       ...prev,
-      { id: botMessageId, role: "assistant", content: "Gândesc...", createdAt: formatTime() },
+      {
+        id: botMessageId,
+        role: "assistant",
+        content: "Gândesc...",
+        createdAt: formatTime(),
+      },
     ])
 
     try {
@@ -79,9 +114,12 @@ export function ChatWindow() {
         throw new Error("Răspunsul nu conține un stream")
       }
 
-      // Clear the "Thinking..." message and start streaming
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === botMessageId ? { ...msg, content: "" } : msg))
+        prev.map((msg) =>
+          msg.id === botMessageId
+            ? { ...msg, content: "" }
+            : msg
+        )
       )
 
       const reader = res.body.getReader()
@@ -94,6 +132,7 @@ export function ChatWindow() {
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
+
         const events = buffer.split("\n\n")
         buffer = events.pop() || ""
 
@@ -107,7 +146,10 @@ export function ChatWindow() {
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === botMessageId
-                  ? { ...msg, content: msg.content + data.content }
+                  ? {
+                      ...msg,
+                      content: msg.content + data.content,
+                    }
                   : msg
               )
             )
@@ -122,10 +164,14 @@ export function ChatWindow() {
       if (err.name === "AbortError") return
 
       console.error(err)
+
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === botMessageId
-            ? { ...msg, content: `❌ Eroare: ${err.message}` }
+            ? {
+                ...msg,
+                content: `❌ Eroare: ${err.message}`,
+              }
             : msg
         )
       )
@@ -139,50 +185,50 @@ export function ChatWindow() {
   }
 
   function stopBotResponse() {
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current)
-      responseTimeoutRef.current = null
-    }
-
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     pendingBotMessageId.current = null
     setIsGenerating(false)
   }
 
-  // ---------- send ----------
-
   function handleSend() {
     if (isGenerating) {
       stopBotResponse()
       return
     }
+
     if (!text.trim() && attachments.length === 0) return
 
     const userMessage = text
+
     setMessages((prev) => [
       ...prev,
-      { id: `msg_${Date.now()}`, role: "user", content: userMessage, attachments, createdAt: formatTime() },
+      {
+        id: `msg_${Date.now()}`,
+        role: "user",
+        content: userMessage,
+        attachments,
+        createdAt: formatTime(),
+      },
     ])
+
     setText("")
     setAttachments([])
 
-    responseTimeoutRef.current = setTimeout(() => {
-      responseTimeoutRef.current = null
-      startBotResponse(userMessage)
-    }, 300)
+    startBotResponse(userMessage)
   }
 
   function handleKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      if (!isGenerating) handleSend()
+
+      if (!isGenerating) {
+        handleSend()
+      }
     }
   }
 
   const canSend = text.trim() || attachments.length > 0
-
-  // ---------- render ----------
 
   return (
     <div className="mx-auto my-8 flex h-[650px] w-full max-w-4xl flex-col justify-between gap-4 rounded-2xl border bg-background p-6 shadow-md">
@@ -192,11 +238,11 @@ export function ChatWindow() {
         <MessageList messages={messages} />
       </div>
 
-      <div className="relative w-full rounded-xl border bg-background p-2 focus-within:ring-1 focus-within:ring-ring">
+      <div className="relative w-full rounded-xl border bg-background p-2">
         {attachments.length > 0 && (
           <AttachmentStrip
             attachments={attachments}
-            disabled={isGenerating}
+            disabled={isGenerating || isUploading}
             onRemove={removeAttachment}
           />
         )}
@@ -205,8 +251,14 @@ export function ChatWindow() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isGenerating}
-          placeholder={isGenerating ? "Botul răspunde..." : "Ask me anything to expand your mind..."}
+          disabled={isGenerating || isUploading}
+          placeholder={
+            isUploading
+              ? "Uploading files..."
+              : isGenerating
+                ? "Botul răspunde..."
+                : "Ask me anything to expand your mind..."
+          }
           className="min-h-[50px] max-h-[120px] p-1"
         />
 
@@ -223,16 +275,27 @@ export function ChatWindow() {
         />
 
         <div className="flex items-center justify-between border-t pt-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={isGenerating}
-            onClick={() => fileInputRef.current?.click()}
-            className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-          >
-            <Paperclip className="size-4" />
-            <span className="sr-only">Atașează fișiere</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={isGenerating || isUploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="size-8 rounded-full text-muted-foreground hover:text-foreground"
+            >
+              <Paperclip className="size-4" />
+              <span className="sr-only">Selectează fișiere</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!attachments.length || isUploading}
+              onClick={uploadFiles}
+            >
+              {isUploading ? "Uploading..." : "Upload Files"}
+            </Button>
+          </div>
 
           {isGenerating ? (
             <Button
@@ -268,13 +331,18 @@ function Header({ isGenerating }) {
         <div className="flex items-center justify-center rounded-xl bg-primary/10 p-2.5 text-primary">
           <Sparkles className="size-5" />
         </div>
+
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Contexta</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Contexta
+          </h1>
+
           <p className="text-xs text-muted-foreground">
             Instant answers and insights from your documents
           </p>
         </div>
       </div>
+
       <StatusBadge isGenerating={isGenerating} />
     </div>
   )
@@ -289,11 +357,18 @@ function AttachmentStrip({ attachments, disabled, onRemove }) {
           className="group relative flex items-center gap-2 rounded-lg border bg-muted p-1.5 pr-7 text-xs"
         >
           {file.type.startsWith("image/") ? (
-            <img src={file.url} alt={file.name} className="size-8 rounded object-cover" />
+            <img
+              src={file.url}
+              alt={file.name}
+              className="size-8 rounded object-cover"
+            />
           ) : (
             <FileText className="size-4 shrink-0 text-muted-foreground" />
           )}
-          <span className="max-w-[120px] truncate font-medium">{file.name}</span>
+
+          <span className="max-w-[120px] truncate font-medium">
+            {file.name}
+          </span>
 
           <button
             type="button"

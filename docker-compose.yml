@@ -9,7 +9,8 @@ services:
       - ollama
     environment:
       OLLAMA_HOST: http://ollama:11434
-
+    volumes:
+      - ./backend/uploads:/backend/uploads
 
   ollama:
     image: ollama/ollama:latest
@@ -22,7 +23,6 @@ services:
     entrypoint:
       - /bin/sh
       - /entrypoint.sh
-
 
 volumes:
   ollama:

@@ -2,3 +2,4 @@ flask
 ollama
 requests
 flask_cors
+werkzeug
