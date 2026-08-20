@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ArrowDownIcon, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ArrowDownIcon } from "lucide-react"
 import { ChatMessage } from "@/components/ui/chat-message"
 
 // How close to the bottom (in px) counts as "at the bottom" for
@@ -32,11 +31,20 @@ export function MessageList({ messages }) {
 
   return (
     <div className="relative h-full min-h-0">
-      <div ref={viewportRef} onScroll={handleScroll} className="h-full overflow-y-auto">
-        <div className="flex flex-col gap-4 p-2">
+      <div
+        ref={viewportRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto p-5"
+        style={{
+          backgroundColor: "#fafafa",
+          backgroundImage: "radial-gradient(#ccc 2px, transparent 2px)",
+          backgroundSize: "20px 20px",
+        }}
+      >
+        <div className="flex flex-col gap-4">
           {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 py-24 text-sm text-muted-foreground">
-              <Sparkles className="size-8 opacity-40" />
+            <div className="flex h-full flex-col items-center justify-center gap-2 py-24 text-xs font-bold uppercase tracking-wide text-black/40">
+              No messages yet. Type a command below.
             </div>
           ) : (
             messages.map((message) => <ChatMessage key={message.id} message={message} />)
@@ -45,15 +53,14 @@ export function MessageList({ messages }) {
       </div>
 
       {!isAtBottom && (
-        <Button
-          variant="secondary"
-          size="icon"
+        <button
+          type="button"
           onClick={() => scrollToBottom()}
-          className="absolute bottom-2 left-1/2 -translate-x-1/2 border shadow"
+          className="neo-icon-btn absolute bottom-3 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center bg-white"
         >
           <ArrowDownIcon className="size-4" />
           <span className="sr-only">Scroll to latest</span>
-        </Button>
+        </button>
       )}
     </div>
   )

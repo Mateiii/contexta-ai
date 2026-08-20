@@ -88,3 +88,142 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/*
+  Neobrutalist / early-2000s theme, scoped under .neo-app so it never
+  leaks into the shadcn tokens above.
+
+  Animation choices:
+  - custom ease-out curve, never the built-in weak ones
+  - only transform + opacity are animated (GPU, skips layout/paint)
+  - nothing enters from scale(0) -- always scale(0.9+) with opacity
+  - exits are faster than entrances (asymmetric timing)
+  - press feedback (scale 0.97) on every clickable element
+*/
+.neo-app {
+  --neo-border: 3px solid #000;
+  --neo-shadow: 4px 4px 0px #000;
+  --neo-shadow-lg: 8px 8px 0px #000;
+  --neo-shadow-active: 1px 1px 0px #000;
+  /* Strong ease-out -- starts fast, gives instant feedback on entrances */
+  --neo-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --neo-yellow: #ffee00;
+  --neo-cyan: #00f0ff;
+  --neo-pink: #ff0055;
+  --neo-bg: #e5e5f7;
+
+  font-family: "Courier New", Courier, monospace;
+  background-color: var(--neo-bg);
+  background-image: linear-gradient(#000 1px, transparent 1px),
+    linear-gradient(90deg, #000 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: -1px -1px;
+}
+
+.neo-window {
+  border: var(--neo-border);
+  background: #fff;
+  box-shadow: var(--neo-shadow-lg);
+}
+
+.neo-icon-btn {
+  border: 2px solid #000;
+  cursor: pointer;
+  transition: transform 160ms var(--neo-ease-out);
+}
+.neo-icon-btn:active {
+  transform: scale(0.9);
+}
+
+/* Sidebar collapse: opened/closed a handful of times per session, so a
+   250ms standard transition is appropriate. grid-template-columns gives
+   a smooth width collapse without content reflowing mid-animation. */
+.neo-sidebar-wrap {
+  display: grid;
+  grid-template-columns: 280px;
+  transition: grid-template-columns 250ms var(--neo-ease-out);
+}
+.neo-sidebar-wrap[data-collapsed="true"] {
+  grid-template-columns: 0px;
+}
+.neo-sidebar-inner {
+  width: 280px;
+  height: 100%;
+  overflow: hidden;
+  border-right: var(--neo-border);
+  background: var(--neo-yellow);
+}
+
+/* File cards: enter from scale(0.95) + opacity 0, never scale(0).
+   Stagger delay is set inline per-item so a batch upload cascades in. */
+.neo-file-card {
+  border: var(--neo-border);
+  background: #fff;
+  box-shadow: var(--neo-shadow);
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: transform 160ms var(--neo-ease-out), box-shadow 160ms var(--neo-ease-out),
+    opacity 220ms ease;
+
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.95) translateY(6px);
+  }
+}
+.neo-file-card:active {
+  transform: translate(2px, 2px) scale(0.97);
+  box-shadow: var(--neo-shadow-active);
+}
+/* Removal is faster than the entrance -- fast where the system is
+   responding to a destructive action the user just took. */
+.neo-file-card[data-removing="true"] {
+  transition: transform 160ms ease, opacity 160ms ease;
+  transition-delay: 0ms !important;
+  opacity: 0;
+  transform: scale(0.92) translateX(16px);
+  pointer-events: none;
+}
+
+.neo-delete-btn {
+  border: 2px solid #000;
+  background: var(--neo-pink);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 140ms var(--neo-ease-out), background-color 140ms ease;
+}
+.neo-delete-btn:hover {
+  background: #000;
+}
+.neo-delete-btn:active {
+  transform: scale(0.85);
+}
+
+/* Chat messages: same "never from scale(0)" treatment */
+.neo-message {
+  border: var(--neo-border);
+  box-shadow: var(--neo-shadow);
+  font-weight: bold;
+  transition: opacity 250ms ease, transform 250ms var(--neo-ease-out);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+}
+
+.neo-badge {
+  border: 2px solid #000;
+  background: #000;
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neo-sidebar-wrap,
+  .neo-file-card,
+  .neo-message,
+  .neo-icon-btn,
+  .neo-delete-btn {
+    transition-duration: 0.01ms !important;
+  }
+}

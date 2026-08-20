@@ -1,19 +1,31 @@
 // One chat bubble. Expects a message shaped like:
-// { id, role: "user" | "assistant", content, attachments?, createdAt }
+// { id, role: "user" | "assistant" | "system", content, attachments?, createdAt }
 export function ChatMessage({ message }) {
   const isUser = message.role === "user"
+  const label = isUser ? "USER" : message.role === "system" ? "SYSTEM" : "CONTEXTA"
 
   return (
-    <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
-      <div className="flex size-8 shrink-0 items-center justify-center self-end rounded-full bg-muted text-xs font-medium">
-        {isUser ? "U" : "AI"}
-      </div>
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`neo-message relative mt-4 max-w-[75%] px-4 py-3 ${
+          isUser ? "bg-[var(--neo-pink)] text-right text-white" : "bg-white"
+        }`}
+      >
+        <div
+          className={`neo-badge absolute -top-3 px-2 py-0.5 text-[0.65rem] font-bold ${
+            isUser ? "right-2" : "left-2 bg-[var(--neo-cyan)] text-black"
+          }`}
+        >
+          {label}
+        </div>
 
-      <div className={`flex min-w-0 flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
         {message.attachments?.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="mb-2 flex flex-wrap gap-2">
             {message.attachments.map((file) => (
-              <div key={file.id} className="rounded-md border bg-muted px-2 py-1 text-xs">
+              <div
+                key={file.id}
+                className="border-2 border-black bg-white px-2 py-1 text-xs font-bold text-black"
+              >
                 {file.name}
               </div>
             ))}
@@ -21,13 +33,17 @@ export function ChatMessage({ message }) {
         )}
 
         {message.content && (
-          <div className="max-w-prose rounded-2xl bg-muted px-4 py-2 text-sm whitespace-pre-wrap">
-            {message.content}
-          </div>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
         )}
 
         {message.createdAt && (
-          <span className="px-1 text-xs text-muted-foreground">{message.createdAt}</span>
+          <span
+            className={`mt-1 block text-[0.65rem] font-bold ${
+              isUser ? "text-white/70" : "text-black/50"
+            }`}
+          >
+            {message.createdAt}
+          </span>
         )}
       </div>
     </div>

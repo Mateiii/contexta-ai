@@ -12,7 +12,7 @@ export function StatusBadge({ isGenerating }) {
   const { label, dotClass } = STATUS[key]
 
   return (
-    <div className="flex items-center gap-2 rounded-full border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
+    <div className="flex items-center gap-2 border-2 border-black bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide">
       <span className={`size-2 rounded-full ${dotClass}`} />
       <span>{label}</span>
     </div>

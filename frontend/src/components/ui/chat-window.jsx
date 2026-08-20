@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { ArrowUpIcon, FileText, Paperclip, Sparkles, Square, X } from "lucide-react"
+import { ArrowUpIcon, Folder, Square } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,70 +10,15 @@ function formatTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
-export function ChatWindow() {
+// onToggleSidebar lets the header's FILES button open/close the
+// global file sidebar from anywhere, regardless of its current state.
+export function ChatWindow({ onToggleSidebar }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState("")
-  const [attachments, setAttachments] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
 
   const pendingBotMessageId = useRef(null)
   const abortControllerRef = useRef(null)
-  const fileInputRef = useRef(null)
-
-  // Select files only
-  function addFiles(fileList) {
-    const files = Array.from(fileList || [])
-    if (!files.length) return
-
-    const newAttachments = files.map((file) => ({
-      id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      name: file.name,
-      type: file.type,
-      file: file,
-      url: URL.createObjectURL(file),
-    }))
-
-    setAttachments((prev) => [...prev, ...newAttachments])
-  }
-
-  // Upload all selected files
-  async function uploadFiles() {
-    if (!attachments.length) return
-
-    setIsUploading(true)
-
-    try {
-      for (const attachment of attachments) {
-        const formData = new FormData()
-        formData.append("file", attachment.file)
-
-        const response = await fetch("http://localhost:5000/upload", {
-          method: "POST",
-          body: formData,
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || "Upload failed")
-        }
-
-        console.log("Uploaded:", data.filename)
-      }
-
-      alert("Files uploaded successfully")
-    } catch (error) {
-      console.error(error)
-      alert(error.message)
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  function removeAttachment(id) {
-    setAttachments((prev) => prev.filter((file) => file.id !== id))
-  }
 
   async function startBotResponse(userMessage) {
     setIsGenerating(true)
@@ -197,7 +142,7 @@ export function ChatWindow() {
       return
     }
 
-    if (!text.trim() && attachments.length === 0) return
+    if (!text.trim()) return
 
     const userMessage = text
 
@@ -207,13 +152,11 @@ export function ChatWindow() {
         id: `msg_${Date.now()}`,
         role: "user",
         content: userMessage,
-        attachments,
         createdAt: formatTime(),
       },
     ])
 
     setText("")
-    setAttachments([])
 
     startBotResponse(userMessage)
   }
@@ -228,158 +171,75 @@ export function ChatWindow() {
     }
   }
 
-  const canSend = text.trim() || attachments.length > 0
+  const canSend = text.trim().length > 0
 
   return (
-    <div className="mx-auto my-8 flex h-[650px] w-full max-w-4xl flex-col justify-between gap-4 rounded-2xl border bg-background p-6 shadow-md">
-      <Header isGenerating={isGenerating} />
+    <div className="flex min-w-0 flex-1 flex-col bg-white">
+      <Header isGenerating={isGenerating} onToggleSidebar={onToggleSidebar} />
 
       <div className="min-h-0 flex-1">
         <MessageList messages={messages} />
       </div>
 
-      <div className="relative w-full rounded-xl border bg-background p-2">
-        {attachments.length > 0 && (
-          <AttachmentStrip
-            attachments={attachments}
-            disabled={isGenerating || isUploading}
-            onRemove={removeAttachment}
-          />
-        )}
-
+      <div className="flex gap-3 border-t-[3px] border-black bg-white p-4">
         <Textarea
+          variant="neo"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isGenerating || isUploading}
+          disabled={isGenerating}
           placeholder={
-            isUploading
-              ? "Uploading files..."
-              : isGenerating
-                ? "Botul răspunde..."
-                : "Ask me anything to expand your mind..."
+            isGenerating ? "Botul răspunde..." : "Type command or message..."
           }
-          className="min-h-[50px] max-h-[120px] p-1"
+          className="min-h-[46px] max-h-[120px]"
+          rows={1}
         />
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,.pdf,.doc,.docx,.txt"
-          onChange={(e) => {
-            addFiles(e.target.files)
-            e.target.value = ""
-          }}
-          className="hidden"
-        />
-
-        <div className="flex items-center justify-between border-t pt-2">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              disabled={isGenerating || isUploading}
-              onClick={() => fileInputRef.current?.click()}
-              className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-            >
-              <Paperclip className="size-4" />
-              <span className="sr-only">Selectează fișiere</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!attachments.length || isUploading}
-              onClick={uploadFiles}
-            >
-              {isUploading ? "Uploading..." : "Upload Files"}
-            </Button>
-          </div>
-
-          {isGenerating ? (
-            <Button
-              variant="destructive"
-              size="icon"
-              onClick={stopBotResponse}
-              className="size-8 shrink-0 animate-pulse rounded-full"
-            >
-              <Square className="size-3.5 fill-current" />
-              <span className="sr-only">Oprește generarea</span>
-            </Button>
-          ) : (
-            <Button
-              size="icon"
-              onClick={handleSend}
-              disabled={!canSend}
-              className="size-8 shrink-0 rounded-full"
-            >
-              <ArrowUpIcon className="size-4" />
-              <span className="sr-only">Trimite</span>
-            </Button>
-          )}
-        </div>
+        {isGenerating ? (
+          <Button
+            variant="neo-pink"
+            onClick={stopBotResponse}
+            className="shrink-0 animate-pulse gap-2 px-5"
+          >
+            <Square className="size-3.5 fill-current" />
+            STOP
+          </Button>
+        ) : (
+          <Button
+            variant="neo-pink"
+            onClick={handleSend}
+            disabled={!canSend}
+            className="shrink-0 gap-2 px-5"
+          >
+            SEND
+            <ArrowUpIcon className="size-3.5" />
+          </Button>
+        )}
       </div>
     </div>
   )
 }
 
-function Header({ isGenerating }) {
+function Header({ isGenerating, onToggleSidebar }) {
   return (
-    <div className="flex items-center justify-between border-b pb-4">
+    <div className="flex items-center justify-between border-b-[3px] border-black bg-[var(--neo-cyan)] p-2 px-3">
       <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center rounded-xl bg-primary/10 p-2.5 text-primary">
-          <Sparkles className="size-5" />
-        </div>
+        <Button variant="neo-yellow" size="sm" onClick={onToggleSidebar} className="gap-1.5">
+          <Folder className="size-3.5" />
+          FILES
+        </Button>
 
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">
+          <h1 className="text-sm font-black uppercase tracking-wide text-black">
             Contexta
           </h1>
-
-          <p className="text-xs text-muted-foreground">
-            Instant answers and insights from your documents
+          <p className="text-[0.65rem] font-bold text-black/60">
+            Instant answers from your documents
           </p>
         </div>
       </div>
 
       <StatusBadge isGenerating={isGenerating} />
-    </div>
-  )
-}
-
-function AttachmentStrip({ attachments, disabled, onRemove }) {
-  return (
-    <div className="mb-2 flex flex-wrap gap-2 border-b p-2">
-      {attachments.map((file) => (
-        <div
-          key={file.id}
-          className="group relative flex items-center gap-2 rounded-lg border bg-muted p-1.5 pr-7 text-xs"
-        >
-          {file.type.startsWith("image/") ? (
-            <img
-              src={file.url}
-              alt={file.name}
-              className="size-8 rounded object-cover"
-            />
-          ) : (
-            <FileText className="size-4 shrink-0 text-muted-foreground" />
-          )}
-
-          <span className="max-w-[120px] truncate font-medium">
-            {file.name}
-          </span>
-
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onRemove(file.id)}
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full p-0.5 transition-colors hover:bg-black/10 disabled:opacity-50 dark:hover:bg-white/20"
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      ))}
     </div>
   )
 }
