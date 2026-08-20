@@ -11,6 +11,7 @@ services:
       OLLAMA_HOST: http://ollama:11434
     volumes:
       - ./backend/uploads:/backend/uploads
+      - ./backend/data:/backend/data
 
   ollama:
     image: ollama/ollama:latest

@@ -3,3 +3,4 @@ ollama
 requests
 flask_cors
 werkzeug
+numpy

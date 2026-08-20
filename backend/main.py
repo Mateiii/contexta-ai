@@ -6,16 +6,15 @@ from werkzeug.utils import secure_filename
 import json
 import os
 
+from rag import create_rag, search
+from chats import load_chats, save_chats
 
-# ============================================================
-# App
-# ============================================================
 
 app = Flask(__name__)
 
 
 # ============================================================
-# CORS
+# Configuration
 # ============================================================
 
 CORS(
@@ -30,10 +29,6 @@ CORS(
 )
 
 
-# ============================================================
-# Ollama configuration
-# ============================================================
-
 OLLAMA_HOST = os.getenv(
     "OLLAMA_HOST",
     "http://localhost:11434"
@@ -41,102 +36,20 @@ OLLAMA_HOST = os.getenv(
 
 MODEL = "gemma3:12b"
 
+UPLOAD_FOLDER = "uploads"
+
 client = Client(
     host=OLLAMA_HOST
 )
 
-
-# ============================================================
-# File upload configuration
-# ============================================================
-
-UPLOAD_FOLDER = "uploads"
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+os.makedirs(
+    UPLOAD_FOLDER,
+    exist_ok=True
+)
 
 
 # ============================================================
-# Chat
-# ============================================================
-
-@app.route("/chat", methods=["POST"])
-def chat():
-
-    data = request.get_json()
-
-    if not data or not data.get("message"):
-        return jsonify({
-            "error": "Message is required"
-        }), 400
-
-    user_message = data["message"]
-
-    def generate():
-
-        try:
-
-            stream = client.chat(
-                model=MODEL,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": user_message
-                    }
-                ],
-                stream=True
-            )
-
-            for chunk in stream:
-
-                token = chunk["message"]["content"]
-
-                if token:
-
-                    event = {
-                        "type": "token",
-                        "content": token
-                    }
-
-                    yield (
-                        "data: "
-                        + json.dumps(event)
-                        + "\n\n"
-                    )
-
-            yield (
-                "data: "
-                + json.dumps({
-                    "type": "done"
-                })
-                + "\n\n"
-            )
-
-        except Exception as e:
-
-            yield (
-                "data: "
-                + json.dumps({
-                    "type": "error",
-                    "content": str(e)
-                })
-                + "\n\n"
-            )
-
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        }
-    )
-
-
-# ============================================================
-# File upload
+# Files
 # ============================================================
 
 @app.route("/upload", methods=["GET"])
@@ -144,7 +57,9 @@ def list_files():
 
     files = []
 
-    for filename in os.listdir(UPLOAD_FOLDER):
+    for filename in os.listdir(
+        UPLOAD_FOLDER
+    ):
 
         filepath = os.path.join(
             UPLOAD_FOLDER,
@@ -156,10 +71,12 @@ def list_files():
             files.append({
                 "id": filename,
                 "name": filename,
-                "size": os.path.getsize(filepath)
+                "size": os.path.getsize(
+                    filepath
+                )
             })
 
-    return jsonify(files), 200
+    return jsonify(files)
 
 
 @app.route("/upload", methods=["POST"])
@@ -179,16 +96,18 @@ def upload():
             "error": "No file selected"
         }), 400
 
-    filename = secure_filename(file.filename)
+    filename = secure_filename(
+        file.filename
+    )
 
-    if not filename:
+    if not filename.lower().endswith(".txt"):
 
         return jsonify({
-            "error": "Invalid filename"
+            "error": "Only .txt files are supported"
         }), 400
 
     filepath = os.path.join(
-        app.config["UPLOAD_FOLDER"],
+        UPLOAD_FOLDER,
         filename
     )
 
@@ -196,21 +115,19 @@ def upload():
 
         file.save(filepath)
 
+        create_rag()
+
         return jsonify({
             "status": "ok",
             "filename": filename
-        }), 200
+        })
 
-    except OSError as e:
+    except Exception as e:
 
         return jsonify({
             "error": str(e)
         }), 500
 
-
-# ============================================================
-# File delete
-# ============================================================
 
 @app.route(
     "/upload/<filename>",
@@ -218,58 +135,35 @@ def upload():
 )
 def delete_file(filename):
 
-    # --------------------------------------------------------
-    # Handle CORS preflight
-    # --------------------------------------------------------
-
     if request.method == "OPTIONS":
         return "", 204
 
-    # --------------------------------------------------------
-    # Sanitize filename
-    # --------------------------------------------------------
-
-    filename = secure_filename(filename)
-
-    if not filename:
-        return jsonify({
-            "error": "Invalid filename"
-        }), 400
-
-    # --------------------------------------------------------
-    # Build file path
-    # --------------------------------------------------------
-
-    filepath = os.path.join(
-        app.config["UPLOAD_FOLDER"],
+    filename = secure_filename(
         filename
     )
 
-    # --------------------------------------------------------
-    # Check file exists
-    # --------------------------------------------------------
+    filepath = os.path.join(
+        UPLOAD_FOLDER,
+        filename
+    )
 
     if not os.path.isfile(filepath):
 
         return jsonify({
-            "error": "File not found",
-            "filename": filename
+            "error": "File not found"
         }), 404
-
-    # --------------------------------------------------------
-    # Delete file
-    # --------------------------------------------------------
 
     try:
 
         os.remove(filepath)
 
-        return jsonify({
-            "status": "ok",
-            "filename": filename
-        }), 200
+        create_rag()
 
-    except OSError as e:
+        return jsonify({
+            "status": "ok"
+        })
+
+    except Exception as e:
 
         return jsonify({
             "error": str(e)
@@ -277,7 +171,150 @@ def delete_file(filename):
 
 
 # ============================================================
-# Health check
+# Chat
+# ============================================================
+
+@app.route("/chat", methods=["POST"])
+def chat():
+
+    data = request.get_json()
+
+    if not data or not data.get("message"):
+
+        return jsonify({
+            "error": "Message is required"
+        }), 400
+
+    user_message = data["message"]
+
+    chat_id = data.get(
+        "chat_id",
+        "default"
+    )
+
+    chats = load_chats()
+
+    chats.setdefault(
+        chat_id,
+        []
+    )
+
+    chats[chat_id].append({
+        "role": "user",
+        "content": user_message
+    })
+
+
+    # Search documents
+
+    relevant_chunks = search(
+        user_message,
+        count=3
+    )
+
+    context = ""
+
+    for chunk in relevant_chunks:
+
+        context += (
+            f"\n--- {chunk['file']} ---\n"
+            f"{chunk['text']}\n"
+        )
+
+
+    # Build prompt
+
+    messages = [
+        {
+            "role": "system",
+            "content": f"""
+Answer the user's question using the provided documents.
+
+DOCUMENTS:
+
+{context}
+
+Youu can also talk about things that are not in the documents, but you must always answer the user's question.
+"""
+        },
+        *chats[chat_id]
+    ]
+
+
+    def generate():
+
+        answer = ""
+
+        try:
+
+            stream = client.chat(
+                model=MODEL,
+                messages=messages,
+                stream=True
+            )
+
+            for chunk in stream:
+
+                token = chunk[
+                    "message"
+                ]["content"]
+
+                if token:
+
+                    answer += token
+
+                    yield (
+                        "data: "
+                        + json.dumps({
+                            "type": "token",
+                            "content": token
+                        })
+                        + "\n\n"
+                    )
+
+
+            chats[chat_id].append({
+                "role": "assistant",
+                "content": answer
+            })
+
+            save_chats(chats)
+
+
+            yield (
+                "data: "
+                + json.dumps({
+                    "type": "done"
+                })
+                + "\n\n"
+            )
+
+
+        except Exception as e:
+
+            yield (
+                "data: "
+                + json.dumps({
+                    "type": "error",
+                    "content": str(e)
+                })
+                + "\n\n"
+            )
+
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )
+
+
+# ============================================================
+# Health
 # ============================================================
 
 @app.route("/health", methods=["GET"])
@@ -292,39 +329,54 @@ def health():
             for model in models.models
         ]
 
+        missing = []
+
         if MODEL not in model_names:
+            missing.append(MODEL)
+
+        if not any(
+            model.startswith("nomic-embed-text")
+            for model in model_names
+        ):
+            missing.append("nomic-embed-text")
+
+        if missing:
 
             return jsonify({
                 "status": "error",
-                "flask": "ok",
-                "ollama": "ok",
-                "model": f"{MODEL} not found",
+                "missing_models": missing,
                 "available_models": model_names
             }), 503
 
         return jsonify({
             "status": "ok",
-            "flask": "ok",
-            "ollama": "ok",
             "model": MODEL,
-            "available_models": model_names
-        }), 200
+            "embedding_model": "nomic-embed-text"
+        })
+
 
     except Exception as e:
 
         return jsonify({
             "status": "error",
-            "flask": "ok",
-            "ollama": "error",
             "error": str(e)
         }), 503
 
 
 # ============================================================
-# Run
+# Startup
 # ============================================================
 
 if __name__ == "__main__":
+
+    print("Building RAG...")
+
+    try:
+        create_rag()
+    except Exception as e:
+        print(
+            f"RAG startup failed: {e}"
+        )
 
     app.run(
         host="0.0.0.0",

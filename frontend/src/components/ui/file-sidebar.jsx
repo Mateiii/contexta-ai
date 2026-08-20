@@ -162,7 +162,7 @@ export function FileSidebar({ collapsed, onCollapse }) {
             multiple
             hidden
             onChange={handleFileSelect}
-            accept=".pdf,.doc,.docx,.txt,.md,.csv"
+            accept=".txt"
           />
 
           <button
