@@ -7,7 +7,7 @@ import json
 import os
 
 from rag import create_rag, search
-from chats import load_chats, save_chats
+from chats import load_chats, save_chats, reset_chats
 
 
 app = Flask(__name__)
@@ -368,6 +368,15 @@ def health():
 # ============================================================
 
 if __name__ == "__main__":
+
+    print("Resetting chats...")
+
+    try:
+        reset_chats()
+    except Exception as e:
+        print(
+            f"Chat reset failed: {e}"
+        )
 
     print("Building RAG...")
 

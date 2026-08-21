@@ -48,3 +48,17 @@ def save_chats(chats):
             indent=2,
             ensure_ascii=False
         )
+
+def reset_chats():
+    with open(
+        "data/chats.json",
+        "w",
+        encoding="utf-8"
+    ) as f:
+        json.dump(
+            {},
+            f,
+            indent=2,
+            ensure_ascii=False
+        )
+
