@@ -15,7 +15,7 @@ FILES_DIR = "uploads"
 RAG_FILE = "data/rag.json"
 
 EMBED_MODEL = "nomic-embed-text"
-CHUNK_SIZE = 300
+CHUNK_SIZE = 50
 
 
 def create_rag():
@@ -105,7 +105,7 @@ def create_rag():
     )
 
 
-def search(question, count=3):
+def search(question, count=1):
 
     if not os.path.exists(RAG_FILE):
         return []

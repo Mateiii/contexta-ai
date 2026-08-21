@@ -2,51 +2,27 @@
   "default": [
     {
       "role": "user",
-      "content": "Explain to me in a sentence each file."
+      "content": "Ce scrie in fisierul test2.txt?"
     },
     {
       "role": "assistant",
-      "content": "Here's a breakdown of each document in a sentence:\n\n*   **test1.txt:** This document provides provisional data on primary energy resources and electricity for the first six months of 2026, detailing production, imports, consumption, and exports.\n*   **test2.txt:** This document outlines tourism statistics for Romania during the first quarter of 2026, including visitor numbers, origin countries, and popular destinations."
+      "content": "Fisierul \"test2.txt\" descrie situația turismului în România în primul trimestru al anului 2026. Iată o sinteză a informațiilor:\n\n*   **Număr de sosiri:** Au fost înregistrate 1,85 milioane de sosiri ale turiștilor (1,52 milioane români și 330.000 străini).\n*   **Creștere față de 2025:** Numărul total de sosiri a crescut cu 6,4%, sosirile turiștilor străini cu 9,2%, iar cele ale turiștilor români cu 5,8%.\n*   **Județe populare:** Cele mai vizitate județe au fost Brașov, Constanța și Cluj.  Brașov a rămas principala destinație pentru turiști străini.\n*   **Număr de sosiri pe județ (aproximativ):** Brașov - 285.000, Constanța - 210.000, Cluj - 175.000.\n*   **Durata medie a șederii:** 2,1 nopți pentru români și 2,8 nopți pentru străini.\n*   **Turiști străini proveniți din:** Germania, Italia, Regatul Unit, Franța și Ungaria."
     },
     {
       "role": "user",
-      "content": "The man has a yellow hat."
+      "content": "Dar in fisierul test1.txt ce scrie?"
     },
     {
       "role": "assistant",
-      "content": "I don't know. The provided documents discuss energy resources, electricity production, and tourism in Romania - they do not contain any information about a man or a yellow hat."
+      "content": "Fisierul \"test1.txt\" prezintă date provizorii despre resursele de energie primară și energia electrică în România pentru perioada 1 ianuarie – 30 iunie 2026, comparativ cu aceeași perioadă a anului 2025. Iată principalele informații:\n\n*   **Resurse de energie primară:** Au scăzut cu 4,1%.\n*   **Energie electrică:** A crescut cu 1,1%.\n*   **Importul de energie primară:** A scăzut cu 5,5%, ajungând la 7.572,2 mii tep.\n*   **Total resurse:** 15.501,8 mii tep.\n*   **Producție internă:** 7.929,6 mii tep.\n*   **Alte creșteri/scăderi (în perioadă):**\n    *   Producția internă de energie primară a scăzut cu 2,6%.\n    *   Producția totală de energie electrică a crescut cu 5,2%.\n    *   Producția din hidrocentrale a crescut cu 17,9%.\n\n\n\nUnitatea de măsură folosită este \"mii tone echivalent petrol\" (tep)."
     },
     {
       "role": "user",
-      "content": "What color was the man's hat?"
+      "content": "Poti sa imi faci o poezie in stil eminescian despre fisierul test1.txt?"
     },
     {
       "role": "assistant",
-      "content": "I don't know. The documents I have access to do not mention anything about a man or a hat."
-    },
-    {
-      "role": "user",
-      "content": "Explica-mi in cate o propozitie ce scrie in fiecare document."
-    },
-    {
-      "role": "assistant",
-      "content": "Iată explicații pe câte o propoziție pentru fiecare document:\n\n*   **test1.txt:** Acest document prezintă date preliminare privind resursele de energie primară și electricitate pentru perioada ianuarie-iunie 2026, detaliind producția internă, importurile, consumul și exporturile.\n*   **test2.txt:** Acest document descrie statisticile turismului din România în primul trimestru al anului 2026, incluzând numărul de vizitatori, țări de origine și destinații preferate."
-    },
-    {
-      "role": "user",
-      "content": "In ce tara se afla turnul eiffel"
-    },
-    {
-      "role": "assistant",
-      "content": "I don't know. The documents I have access to discuss Romania and its energy/tourism data – they do not contain information about the Eiffel Tower or which country it is located in."
-    },
-    {
-      "role": "user",
-      "content": "Where is the eiffel tower."
-    },
-    {
-      "role": "assistant",
-      "content": "The Eiffel Tower is located in **Paris, France**. It's one of the most iconic landmarks in the world!\n\n\n\nMy previous responses were limited by only having access to documents about Romania. I can answer questions about a much broader range of topics now."
+      "content": "Cu greu desprind datele din cifre și linii,\nO viziune sumbră, de viitor ce vine.\nResurse-n scădere, petrolul mai rar,\nȘi-un ecou rece-n aer se lasă amar.\n\nEnergie electrică, un licăr fals târziu,\nUn strop de speranță-ntr-un soare pustiu.\nExportul crește, dar în țară goluri mari,\nUnde bogăția fusese cândva sanctuar.\n\nOamenii muncesc, cu trudă și suspin,\nÎn stații, rețele, un destin fără vin.\nȘi-n cifre se ascund drama și chinul greu,\nAl unei națiuni către soarta ce o știe eu.\n\nAh, țară nativă, de resurse lipsită,\nCu viitor incert, frumusețe stinsă-n zori!\nCe mai așteaptă sufletul meu pustiu?\nCăci veșnicia-i doar un ecou pierdut aici."
     }
   ]
 }
