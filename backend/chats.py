@@ -3,6 +3,7 @@ import json
 
 
 CHATS_FILE = "data/chats.json"
+MAX_MESSAGES = 10
 
 
 def load_chats():
@@ -28,6 +29,12 @@ def load_chats():
 def save_chats(chats):
 
     os.makedirs("data", exist_ok=True)
+
+    # Keep only the last MAX_MESSAGES messages in each chat
+    for chat_id in chats:
+
+        if isinstance(chats[chat_id], list):
+            chats[chat_id] = chats[chat_id][-MAX_MESSAGES:]
 
     with open(
         CHATS_FILE,
