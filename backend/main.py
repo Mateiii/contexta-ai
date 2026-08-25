@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 
 import json
 import os
+import threading
 
 from rag import create_rag, search
 from chats import load_chats, save_chats, reset_chats
@@ -37,6 +38,7 @@ OLLAMA_HOST = os.getenv(
 MODEL = "gemma3:12b"
 
 UPLOAD_FOLDER = "uploads"
+ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md", ".json", ".csv"}
 
 client = Client(
     host=OLLAMA_HOST
@@ -100,10 +102,12 @@ def upload():
         file.filename
     )
 
-    if not filename.lower().endswith(".txt"):
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext not in ALLOWED_EXTENSIONS:
 
         return jsonify({
-            "error": "Only .txt files are supported"
+            "error": f"Unsupported file type. Allowed extensions: {', '.join(ALLOWED_EXTENSIONS)}"
         }), 400
 
     filepath = os.path.join(
@@ -115,7 +119,8 @@ def upload():
 
         file.save(filepath)
 
-        create_rag()
+        # Run RAG rebuild in a background thread so the response is instant
+        threading.Thread(target=create_rag, daemon=True).start()
 
         return jsonify({
             "status": "ok",
@@ -157,7 +162,8 @@ def delete_file(filename):
 
         os.remove(filepath)
 
-        create_rag()
+        # Rebuild RAG in the background after deleting a file
+        threading.Thread(target=create_rag, daemon=True).start()
 
         return jsonify({
             "status": "ok"
@@ -234,7 +240,7 @@ DOCUMENTS:
 
 {context}
 
-Youu can also talk about things that are not in the documents, but you must always answer the user's question.
+You can also talk about things that are not in the documents, but you must always answer the user's question.
 """
         },
         *chats[chat_id]

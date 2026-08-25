@@ -234,7 +234,7 @@ function Header({ isGenerating, onToggleSidebar }) {
             Contexta
           </h1>
           <p className="text-[0.65rem] font-bold text-black/60">
-            Instant answers from your documents
+            AKA Hababas AI
           </p>
         </div>
       </div>

@@ -2,7 +2,8 @@ import os
 import json
 import numpy as np
 from ollama import Client
-
+from pypdf import PdfReader
+import docx
 
 client = Client(
     host=os.getenv(
@@ -16,6 +17,39 @@ RAG_FILE = "data/rag.json"
 
 EMBED_MODEL = "nomic-embed-text"
 CHUNK_SIZE = 50
+ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md", ".json", ".csv"}
+
+
+def extract_text(filepath: str) -> str:
+    """Extrage textul brut din fișier în funcție de extensia sa."""
+    ext = os.path.splitext(filepath)[1].lower()
+    
+    try:
+        # Fișiere de tip text simplu
+        if ext in {".txt", ".md", ".json", ".csv"}:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()
+
+        # Fișiere PDF
+        elif ext == ".pdf":
+            reader = PdfReader(filepath)
+            text = ""
+            for page in reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+            return text
+
+        # Fișiere Word (DOCX)
+        elif ext == ".docx":
+            doc = docx.Document(filepath)
+            return "\n".join([p.text for p in doc.paragraphs])
+
+    except Exception as e:
+        print(f"Error reading {filepath}: {e}")
+        return ""
+
+    return ""
 
 
 def create_rag():
@@ -23,6 +57,9 @@ def create_rag():
     chunks = []
 
     os.makedirs("data", exist_ok=True)
+
+    if not os.path.exists(FILES_DIR):
+        os.makedirs(FILES_DIR, exist_ok=True)
 
     for filename in os.listdir(FILES_DIR):
 
@@ -34,25 +71,14 @@ def create_rag():
         if not os.path.isfile(path):
             continue
 
-        if not filename.lower().endswith(".txt"):
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
             continue
 
-        try:
+        # Extrage textul indiferent de format
+        text = extract_text(path)
 
-            with open(
-                path,
-                "r",
-                encoding="utf-8"
-            ) as f:
-
-                text = f.read()
-
-        except Exception as e:
-
-            print(
-                f"Could not read {filename}: {e}"
-            )
-
+        if not text or not text.strip():
             continue
 
         words = text.split()
@@ -69,7 +95,7 @@ def create_rag():
                 ]
             )
 
-            if not chunk:
+            if not chunk.strip():
                 continue
 
             result = client.embed(
@@ -152,7 +178,7 @@ def search(question, count=1):
         )
 
     chunks.sort(
-        key=lambda x: x["similarity"],
+        key=lambda x: float(x["similarity"]),
         reverse=True
     )
 

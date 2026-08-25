@@ -4,3 +4,5 @@ requests
 flask_cors
 werkzeug
 numpy
+pypdf
+python-docx

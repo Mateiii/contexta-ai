@@ -150,7 +150,7 @@ export function FileSidebar({ collapsed, onCollapse }) {
 
         <div className="neo-badge flex items-center justify-between p-3">
           <span className="text-sm font-bold tracking-wide">
-            GLOBAL_KNOWLEDGE
+           FILES
           </span>
         </div>
 
@@ -162,7 +162,7 @@ export function FileSidebar({ collapsed, onCollapse }) {
             multiple
             hidden
             onChange={handleFileSelect}
-            accept=".txt"
+            accept=".txt,.pdf,.docx,.md,.json,.csv"
           />
 
           <button
