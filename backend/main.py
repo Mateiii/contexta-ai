@@ -57,23 +57,13 @@ def list_files():
 
     files = []
 
-    for filename in os.listdir(
-        UPLOAD_FOLDER
-    ):
-
-        filepath = os.path.join(
-            UPLOAD_FOLDER,
-            filename
-        )
-
+    for filename in os.listdir(UPLOAD_FOLDER):
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
         if os.path.isfile(filepath):
-
             files.append({
                 "id": filename,
                 "name": filename,
-                "size": os.path.getsize(
-                    filepath
-                )
+                "size": os.path.getsize(filepath)
             })
 
     return jsonify(files)
@@ -83,91 +73,49 @@ def list_files():
 def upload():
 
     if "file" not in request.files:
-
-        return jsonify({
-            "error": "No file provided"
-        }), 400
+        return jsonify({"error": "No file provided"}), 400
 
     file = request.files["file"]
 
     if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
 
-        return jsonify({
-            "error": "No file selected"
-        }), 400
-
-    filename = secure_filename(
-        file.filename
-    )
+    filename = secure_filename(file.filename)
 
     if not filename.lower().endswith(".txt"):
+        return jsonify({"error": "Only .txt files are supported"}), 400
 
-        return jsonify({
-            "error": "Only .txt files are supported"
-        }), 400
-
-    filepath = os.path.join(
-        UPLOAD_FOLDER,
-        filename
-    )
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
 
     try:
-
         file.save(filepath)
-
         create_rag()
-
         return jsonify({
             "status": "ok",
             "filename": filename
         })
-
     except Exception as e:
-
-        return jsonify({
-            "error": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@app.route(
-    "/upload/<filename>",
-    methods=["DELETE", "OPTIONS"]
-)
+@app.route("/upload/<filename>", methods=["DELETE", "OPTIONS"])
 def delete_file(filename):
 
     if request.method == "OPTIONS":
         return "", 204
 
-    filename = secure_filename(
-        filename
-    )
-
-    filepath = os.path.join(
-        UPLOAD_FOLDER,
-        filename
-    )
+    filename = secure_filename(filename)
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
 
     if not os.path.isfile(filepath):
-
-        return jsonify({
-            "error": "File not found"
-        }), 404
+        return jsonify({"error": "File not found"}), 404
 
     try:
-
         os.remove(filepath)
-
         create_rag()
-
-        return jsonify({
-            "status": "ok"
-        })
-
+        return jsonify({"status": "ok"})
     except Exception as e:
-
-        return jsonify({
-            "error": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================
@@ -180,49 +128,107 @@ def chat():
     data = request.get_json()
 
     if not data or not data.get("message"):
+        return jsonify({"error": "Message is required"}), 400
 
-        return jsonify({
-            "error": "Message is required"
-        }), 400
-
-    user_message = data["message"]
-
-    chat_id = data.get(
-        "chat_id",
-        "default"
-    )
-
+    user_message = data["message"].strip()
+    chat_id = data.get("chat_id", "default")
     chats = load_chats()
 
-    chats.setdefault(
-        chat_id,
-        []
-    )
+    # ------------------------------------------------------------
+    # /compact Command Handler
+    # ------------------------------------------------------------
+    if user_message.lower() == "/compact":
+        history = chats.get(chat_id, [])
+
+        if not history:
+            def empty_gen():
+                msg = "No conversation history available to compact."
+                yield f"data: {json.dumps({'type': 'token', 'content': msg})}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+            return Response(
+                empty_gen(),
+                mimetype="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+            )
+
+        # Format history string for context summarization
+        history_text = "\n".join(
+            [f"{msg['role'].upper()}: {msg['content']}" for msg in history]
+        )
+
+        compact_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Summarize the following conversation history into concise key points, decisions, "
+                    "and topics discussed. Preserve all necessary context for future turns."
+                )
+            },
+            {
+                "role": "user",
+                "content": history_text
+            }
+        ]
+
+        def generate_compact():
+            summary_text = ""
+            try:
+                stream = client.chat(
+                    model=MODEL,
+                    messages=compact_messages,
+                    stream=True
+                )
+
+                for chunk in stream:
+                    token = chunk["message"]["content"]
+                    if token:
+                        summary_text += token
+                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+                # Replace current chat history with system summary context + assistant output
+                chats[chat_id] = [
+                    {
+                        "role": "system",
+                        "content": f"Summary of previous chat context:\n{summary_text}"
+                    },
+                    {
+                        "role": "assistant",
+                        "content": f"⚡ **Chat Compacted**\n\n{summary_text}"
+                    }
+                ]
+
+                save_chats(chats)
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+        return Response(
+            generate_compact(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive"
+            }
+        )
+
+    # ------------------------------------------------------------
+    # Standard Chat Flow
+    # ------------------------------------------------------------
+    chats.setdefault(chat_id, [])
 
     chats[chat_id].append({
         "role": "user",
         "content": user_message
     })
 
-
     # Search documents
-
-    relevant_chunks = search(
-        user_message,
-        count=3
-    )
-
+    relevant_chunks = search(user_message, count=3)
     context = ""
-
     for chunk in relevant_chunks:
-
-        context += (
-            f"\n--- {chunk['file']} ---\n"
-            f"{chunk['text']}\n"
-        )
-
-
-    # Build prompt
+        context += f"\n--- {chunk['file']} ---\n{chunk['text']}\n"
 
     messages = [
         {
@@ -234,19 +240,15 @@ DOCUMENTS:
 
 {context}
 
-Youu can also talk about things that are not in the documents, but you must always answer the user's question.
+You can also talk about things that are not in the documents, but you must always answer the user's question.
 """
         },
         *chats[chat_id]
     ]
 
-
     def generate():
-
         answer = ""
-
         try:
-
             stream = client.chat(
                 model=MODEL,
                 messages=messages,
@@ -254,24 +256,10 @@ Youu can also talk about things that are not in the documents, but you must alwa
             )
 
             for chunk in stream:
-
-                token = chunk[
-                    "message"
-                ]["content"]
-
+                token = chunk["message"]["content"]
                 if token:
-
                     answer += token
-
-                    yield (
-                        "data: "
-                        + json.dumps({
-                            "type": "token",
-                            "content": token
-                        })
-                        + "\n\n"
-                    )
-
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
             chats[chat_id].append({
                 "role": "assistant",
@@ -279,28 +267,10 @@ Youu can also talk about things that are not in the documents, but you must alwa
             })
 
             save_chats(chats)
-
-
-            yield (
-                "data: "
-                + json.dumps({
-                    "type": "done"
-                })
-                + "\n\n"
-            )
-
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
         except Exception as e:
-
-            yield (
-                "data: "
-                + json.dumps({
-                    "type": "error",
-                    "content": str(e)
-                })
-                + "\n\n"
-            )
-
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return Response(
         generate(),
@@ -321,27 +291,17 @@ Youu can also talk about things that are not in the documents, but you must alwa
 def health():
 
     try:
-
         models = client.list()
-
-        model_names = [
-            model.model
-            for model in models.models
-        ]
+        model_names = [model.model for model in models.models]
 
         missing = []
-
         if MODEL not in model_names:
             missing.append(MODEL)
 
-        if not any(
-            model.startswith("nomic-embed-text")
-            for model in model_names
-        ):
+        if not any(model.startswith("nomic-embed-text") for model in model_names):
             missing.append("nomic-embed-text")
 
         if missing:
-
             return jsonify({
                 "status": "error",
                 "missing_models": missing,
@@ -354,9 +314,7 @@ def health():
             "embedding_model": "nomic-embed-text"
         })
 
-
     except Exception as e:
-
         return jsonify({
             "status": "error",
             "error": str(e)
@@ -370,22 +328,22 @@ def health():
 if __name__ == "__main__":
 
     print("Resetting chats...")
-
     try:
         reset_chats()
     except Exception as e:
-        print(
-            f"Chat reset failed: {e}"
-        )
+        print(f"Chat reset failed: {e}")
 
     print("Building RAG...")
-
     try:
         create_rag()
     except Exception as e:
-        print(
-            f"RAG startup failed: {e}"
-        )
+        print(f"RAG startup failed: {e}")
+
+    print("Pre-warming gemma3:12b into VRAM...")
+    try:
+        client.generate(model=MODEL, prompt="", keep_alive="-1")
+    except Exception as e:
+        print(f"Pre-warm failed: {e}")
 
     app.run(
         host="0.0.0.0",
