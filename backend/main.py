@@ -51,6 +51,81 @@ os.makedirs(
 
 
 # ============================================================
+# RAG State
+# ============================================================
+
+# True while the RAG is being rebuilt.
+rag_busy = False
+
+# Prevents multiple RAG rebuilds from running simultaneously.
+rag_lock = threading.Lock()
+
+# Used to make sure only one rebuild thread is active.
+rag_rebuild_lock = threading.Lock()
+
+
+def rebuild_rag():
+    """
+    Rebuild the RAG in the background.
+
+    Only one rebuild can run at a time.
+    While rebuilding, rag_busy is True so chat requests
+    are rejected by the backend.
+    """
+
+    global rag_busy
+
+    # Don't allow multiple rebuilds at the same time.
+    if not rag_rebuild_lock.acquire(blocking=False):
+        print("RAG rebuild already running. Skipping duplicate rebuild.")
+        return
+
+    try:
+
+        with rag_lock:
+            rag_busy = True
+
+        print("RAG rebuild started.")
+
+        create_rag()
+
+        print("RAG rebuild finished.")
+
+    except Exception as e:
+
+        print(
+            f"RAG rebuild failed: {e}"
+        )
+
+    finally:
+
+        with rag_lock:
+            rag_busy = False
+
+        rag_rebuild_lock.release()
+
+
+def start_rag_rebuild():
+    """
+    Start a background RAG rebuild.
+    """
+
+    threading.Thread(
+        target=rebuild_rag,
+        daemon=True
+    ).start()
+
+
+def is_rag_busy():
+    """
+    Safely check whether RAG is currently rebuilding.
+    """
+
+    with rag_lock:
+        return rag_busy
+
+
+# ============================================================
 # Files
 # ============================================================
 
@@ -107,7 +182,10 @@ def upload():
     if ext not in ALLOWED_EXTENSIONS:
 
         return jsonify({
-            "error": f"Unsupported file type. Allowed extensions: {', '.join(ALLOWED_EXTENSIONS)}"
+            "error": (
+                "Unsupported file type. "
+                f"Allowed extensions: {', '.join(ALLOWED_EXTENSIONS)}"
+            )
         }), 400
 
     filepath = os.path.join(
@@ -119,8 +197,8 @@ def upload():
 
         file.save(filepath)
 
-        # Run RAG rebuild in a background thread so the response is instant
-        threading.Thread(target=create_rag, daemon=True).start()
+        # Rebuild RAG in the background.
+        start_rag_rebuild()
 
         return jsonify({
             "status": "ok",
@@ -162,8 +240,8 @@ def delete_file(filename):
 
         os.remove(filepath)
 
-        # Rebuild RAG in the background after deleting a file
-        threading.Thread(target=create_rag, daemon=True).start()
+        # Rebuild RAG in the background after deleting.
+        start_rag_rebuild()
 
         return jsonify({
             "status": "ok"
@@ -177,11 +255,30 @@ def delete_file(filename):
 
 
 # ============================================================
+# RAG Status
+# ============================================================
+
+@app.route("/rag/status", methods=["GET"])
+def rag_status():
+
+    return jsonify({
+        "busy": is_rag_busy()
+    })
+
+
+# ============================================================
 # Chat
 # ============================================================
 
 @app.route("/chat", methods=["POST"])
 def chat():
+
+    # Never allow chat while RAG is rebuilding.
+    if is_rag_busy():
+
+        return jsonify({
+            "error": "Documents are currently being updated. Please wait."
+        }), 409
 
     data = request.get_json()
 
@@ -211,7 +308,17 @@ def chat():
     })
 
 
+    # ========================================================
     # Search documents
+    # ========================================================
+
+    # RAG could theoretically start immediately after the
+    # check above, so we check again before searching.
+    if is_rag_busy():
+
+        return jsonify({
+            "error": "Documents are currently being updated. Please wait."
+        }), 409
 
     relevant_chunks = search(
         user_message,
@@ -228,7 +335,9 @@ def chat():
         )
 
 
+    # ========================================================
     # Build prompt
+    # ========================================================
 
     messages = [
         {
@@ -247,11 +356,32 @@ You can also talk about things that are not in the documents, but you must alway
     ]
 
 
+    # ========================================================
+    # Stream response
+    # ========================================================
+
     def generate():
 
         answer = ""
 
         try:
+
+            # Check one more time before contacting Ollama.
+            if is_rag_busy():
+
+                yield (
+                    "data: "
+                    + json.dumps({
+                        "type": "error",
+                        "content": (
+                            "Documents are currently being updated. "
+                            "Please wait."
+                        )
+                    })
+                    + "\n\n"
+                )
+
+                return
 
             stream = client.chat(
                 model=MODEL,
@@ -297,6 +427,10 @@ You can also talk about things that are not in the documents, but you must alway
 
 
         except Exception as e:
+
+            print(
+                f"Chat error: {e}"
+            )
 
             yield (
                 "data: "
@@ -357,7 +491,8 @@ def health():
         return jsonify({
             "status": "ok",
             "model": MODEL,
-            "embedding_model": "nomic-embed-text"
+            "embedding_model": "nomic-embed-text",
+            "rag_busy": is_rag_busy()
         })
 
 
@@ -378,20 +513,30 @@ if __name__ == "__main__":
     print("Resetting chats...")
 
     try:
+
         reset_chats()
+
     except Exception as e:
+
         print(
             f"Chat reset failed: {e}"
         )
 
+
     print("Building RAG...")
 
     try:
+
+        # Startup RAG build is synchronous.
+        # Chat cannot be used until Flask starts.
         create_rag()
+
     except Exception as e:
+
         print(
             f"RAG startup failed: {e}"
         )
+
 
     app.run(
         host="0.0.0.0",
