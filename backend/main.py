@@ -7,7 +7,7 @@ import json
 import os
 import threading
 
-from rag import create_rag, search
+from rag import create_rag, remove_file_from_rag, search
 from chats import load_chats, save_chats, reset_chats
 
 
@@ -54,66 +54,78 @@ os.makedirs(
 # RAG State
 # ============================================================
 
+# Protects the rebuild state below.
+rag_lock = threading.Lock()
+
+# Prevent simultaneous reads/writes of the persisted RAG index. In particular,
+# a fast delete must not race with a background upload rebuild.
+rag_data_lock = threading.Lock()
+
 # True while the RAG is being rebuilt.
 rag_busy = False
 
-# Prevents multiple RAG rebuilds from running simultaneously.
-rag_lock = threading.Lock()
+# A file changed while the current RAG snapshot was being built.  Keeping this
+# flag means rapid uploads/deletes are coalesced, but never silently skipped.
+rag_rebuild_pending = False
 
-# Used to make sure only one rebuild thread is active.
-rag_rebuild_lock = threading.Lock()
+# There is at most one rebuild worker.  It performs another pass whenever a
+# file operation arrives during the current pass.
+rag_rebuild_running = False
 
 
 def rebuild_rag():
     """
     Rebuild the RAG in the background.
 
-    Only one rebuild can run at a time.
-    While rebuilding, rag_busy is True so chat requests
-    are rejected by the backend.
+    Build until no file changes occurred during a build. While rebuilding,
+    rag_busy is True so chat requests are rejected by the backend.
     """
 
-    global rag_busy
+    global rag_busy, rag_rebuild_pending, rag_rebuild_running
 
-    # Don't allow multiple rebuilds at the same time.
-    if not rag_rebuild_lock.acquire(blocking=False):
-        print("RAG rebuild already running. Skipping duplicate rebuild.")
-        return
+    while True:
+        # This build accounts for every change requested before this point.
+        with rag_lock:
+            rag_rebuild_pending = False
 
-    try:
+        try:
+            print("RAG rebuild started.")
+            with rag_data_lock:
+                create_rag()
+            print("RAG rebuild finished.")
+
+        except Exception as e:
+            print(f"RAG rebuild failed: {e}")
 
         with rag_lock:
-            rag_busy = True
+            if not rag_rebuild_pending:
+                rag_busy = False
+                rag_rebuild_running = False
+                return
 
-        print("RAG rebuild started.")
-
-        create_rag()
-
-        print("RAG rebuild finished.")
-
-    except Exception as e:
-
-        print(
-            f"RAG rebuild failed: {e}"
-        )
-
-    finally:
-
-        with rag_lock:
-            rag_busy = False
-
-        rag_rebuild_lock.release()
+        print("RAG changed during rebuild; rebuilding again.")
 
 
 def start_rag_rebuild():
     """
-    Start a background RAG rebuild.
+    Request a background RAG rebuild.
+
+    A request made during an active rebuild is recorded and causes one final
+    rebuild, so the generated index always catches up with rapid file changes.
     """
 
-    threading.Thread(
-        target=rebuild_rag,
-        daemon=True
-    ).start()
+    global rag_busy, rag_rebuild_pending, rag_rebuild_running
+
+    with rag_lock:
+        rag_rebuild_pending = True
+
+        if rag_rebuild_running:
+            return
+
+        rag_busy = True
+        rag_rebuild_running = True
+
+    threading.Thread(target=rebuild_rag, daemon=True).start()
 
 
 def is_rag_busy():
@@ -240,8 +252,11 @@ def delete_file(filename):
 
         os.remove(filepath)
 
-        # Rebuild RAG in the background after deleting.
-        start_rag_rebuild()
+        # Removing chunks for one file is immediate and avoids re-embedding
+        # every remaining document. The index lock keeps this safe if an
+        # upload-triggered rebuild is already in progress.
+        with rag_data_lock:
+            remove_file_from_rag(filename)
 
         return jsonify({
             "status": "ok"
@@ -520,21 +535,6 @@ if __name__ == "__main__":
 
         print(
             f"Chat reset failed: {e}"
-        )
-
-
-    print("Building RAG...")
-
-    try:
-
-        # Startup RAG build is synchronous.
-        # Chat cannot be used until Flask starts.
-        create_rag()
-
-    except Exception as e:
-
-        print(
-            f"RAG startup failed: {e}"
         )
 
 

@@ -20,6 +20,22 @@ CHUNK_SIZE = 50
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md", ".json", ".csv"}
 
 
+def save_rag(chunks):
+    """Atomically replace the persisted index so readers never see partial JSON."""
+
+    temp_file = f"{RAG_FILE}.tmp"
+
+    with open(temp_file, "w", encoding="utf-8") as f:
+        json.dump(
+            chunks,
+            f,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    os.replace(temp_file, RAG_FILE)
+
+
 def extract_text(filepath: str) -> str:
     """Extrage textul brut din fișier în funcție de extensia sa."""
     ext = os.path.splitext(filepath)[1].lower()
@@ -113,25 +129,36 @@ def create_rag():
                 "embedding": embedding
             })
 
-    with open(
-        RAG_FILE,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            chunks,
-            f,
-            indent=2,
-            ensure_ascii=False
-        )
+    save_rag(chunks)
 
     print(
         f"RAG created with {len(chunks)} chunks."
     )
 
 
-def search(question, count=1):
+def remove_file_from_rag(filename: str):
+    """Remove one deleted file's chunks without re-embedding other files."""
+
+    if not os.path.exists(RAG_FILE):
+        return
+
+    with open(RAG_FILE, "r", encoding="utf-8") as f:
+        chunks = json.load(f)
+
+    remaining_chunks = [
+        chunk for chunk in chunks
+        if chunk.get("file") != filename
+    ]
+
+    if len(remaining_chunks) == len(chunks):
+        return
+
+    save_rag(remaining_chunks)
+
+    print(f"Removed {filename} from RAG index.")
+
+
+def search(question, count=3):
 
     if not os.path.exists(RAG_FILE):
         return []
