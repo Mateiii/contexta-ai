@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ChatWindow } from "@/components/ui/chat-window"
 import { FileSidebar } from "@/components/ui/file-sidebar"
+import { Toaster } from "@/components/ui/toast"
 
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -14,6 +15,7 @@ export default function App() {
         />
         <ChatWindow onToggleSidebar={() => setSidebarCollapsed((c) => !c)} />
       </div>
+      <Toaster />
     </main>
   )
 }

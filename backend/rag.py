@@ -136,6 +136,48 @@ def create_rag():
     )
 
 
+def index_file(filename: str):
+    """Embed one uploaded file while preserving chunks from other files."""
+
+    path = os.path.join(FILES_DIR, filename)
+
+    if not os.path.isfile(path):
+        return
+
+    text = extract_text(path)
+    new_chunks = []
+
+    if text and text.strip():
+        words = text.split()
+
+        for i in range(0, len(words), CHUNK_SIZE):
+            chunk = " ".join(words[i:i + CHUNK_SIZE])
+
+            if not chunk.strip():
+                continue
+
+            result = client.embed(model=EMBED_MODEL, input=chunk)
+            new_chunks.append({
+                "file": filename,
+                "text": chunk,
+                "embedding": result["embeddings"][0]
+            })
+
+    existing_chunks = []
+    if os.path.exists(RAG_FILE):
+        with open(RAG_FILE, "r", encoding="utf-8") as f:
+            existing_chunks = json.load(f)
+
+    # Re-uploading a filename replaces its old chunks instead of duplicating it.
+    remaining_chunks = [
+        chunk for chunk in existing_chunks
+        if chunk.get("file") != filename
+    ]
+
+    save_rag(remaining_chunks + new_chunks)
+    print(f"Indexed {filename} with {len(new_chunks)} chunks.")
+
+
 def remove_file_from_rag(filename: str):
     """Remove one deleted file's chunks without re-embedding other files."""
 

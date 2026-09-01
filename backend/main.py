@@ -7,7 +7,7 @@ import json
 import os
 import threading
 
-from rag import create_rag, remove_file_from_rag, search
+from rag import index_file, remove_file_from_rag, search
 from chats import load_chats, save_chats, reset_chats
 
 
@@ -64,9 +64,9 @@ rag_data_lock = threading.Lock()
 # True while the RAG is being rebuilt.
 rag_busy = False
 
-# A file changed while the current RAG snapshot was being built.  Keeping this
-# flag means rapid uploads/deletes are coalesced, but never silently skipped.
-rag_rebuild_pending = False
+# Files waiting to be indexed. This lets rapid uploads queue safely without
+# re-embedding documents that are already in the index.
+rag_rebuild_pending_files = set()
 
 # There is at most one rebuild worker.  It performs another pass whenever a
 # file operation arrives during the current pass.
@@ -75,49 +75,52 @@ rag_rebuild_running = False
 
 def rebuild_rag():
     """
-    Rebuild the RAG in the background.
+    Incrementally update the RAG in the background.
 
-    Build until no file changes occurred during a build. While rebuilding,
+    Process until no uploads arrived during an update. While rebuilding,
     rag_busy is True so chat requests are rejected by the backend.
     """
 
-    global rag_busy, rag_rebuild_pending, rag_rebuild_running
+    global rag_busy, rag_rebuild_pending_files, rag_rebuild_running
 
     while True:
-        # This build accounts for every change requested before this point.
         with rag_lock:
-            rag_rebuild_pending = False
+            pending_files = rag_rebuild_pending_files
+            rag_rebuild_pending_files = set()
 
-        try:
-            print("RAG rebuild started.")
-            with rag_data_lock:
-                create_rag()
-            print("RAG rebuild finished.")
+        print(f"RAG update started for: {', '.join(sorted(pending_files))}")
 
-        except Exception as e:
-            print(f"RAG rebuild failed: {e}")
+        for filename in pending_files:
+            try:
+                with rag_data_lock:
+                    index_file(filename)
+
+            except Exception as e:
+                print(f"RAG update failed for {filename}: {e}")
+
+        print("RAG update finished.")
 
         with rag_lock:
-            if not rag_rebuild_pending:
+            if not rag_rebuild_pending_files:
                 rag_busy = False
                 rag_rebuild_running = False
                 return
 
-        print("RAG changed during rebuild; rebuilding again.")
+        print("More files arrived during the RAG update.")
 
 
-def start_rag_rebuild():
+def start_rag_rebuild(filename):
     """
-    Request a background RAG rebuild.
+    Queue one uploaded file for background indexing.
 
-    A request made during an active rebuild is recorded and causes one final
-    rebuild, so the generated index always catches up with rapid file changes.
+    A file uploaded during an active update is processed in the next pass,
+    without rebuilding embeddings for unrelated documents.
     """
 
-    global rag_busy, rag_rebuild_pending, rag_rebuild_running
+    global rag_busy, rag_rebuild_pending_files, rag_rebuild_running
 
     with rag_lock:
-        rag_rebuild_pending = True
+        rag_rebuild_pending_files.add(filename)
 
         if rag_rebuild_running:
             return
@@ -209,8 +212,8 @@ def upload():
 
         file.save(filepath)
 
-        # Rebuild RAG in the background.
-        start_rag_rebuild()
+        # Index only this file in the background.
+        start_rag_rebuild(filename)
 
         return jsonify({
             "status": "ok",

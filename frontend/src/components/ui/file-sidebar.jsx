@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { FileText, Upload, X } from "lucide-react"
+import { toast } from "@/components/ui/toast"
 
 const BACKEND_URL = "http://localhost:5000"
 
@@ -35,6 +36,28 @@ export function FileSidebar({ collapsed, onCollapse }) {
       setFiles(data)
     } catch (err) {
       console.error("Failed to load files:", err)
+    }
+  }
+
+  async function waitForRagBuild(filename) {
+    try {
+      while (true) {
+        const res = await fetch(`${BACKEND_URL}/rag/status`)
+        const data = await res.json().catch(() => ({}))
+
+        if (res.ok && !data.busy) {
+          toast.add({
+            title: "Your file has been processed.",
+            description: `${filename} is ready to use in chat.`,
+            type: "success",
+          })
+          return
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+    } catch (err) {
+      console.error("Failed to wait for RAG build:", err)
     }
   }
 
@@ -92,6 +115,14 @@ export function FileSidebar({ collapsed, onCollapse }) {
               : f
           )
         )
+
+        toast.add({
+          title: "Your file is being processed.",
+          description: `Please wait for the model to process ${data.filename}`,
+          type: "success",
+        })
+
+        waitForRagBuild(data.filename)
       } catch (err) {
         console.error("Upload failed:", err)
 
