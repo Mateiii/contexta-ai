@@ -19,7 +19,11 @@ function formatTime() {
   })
 }
 
-export function ChatWindow({ onToggleSidebar }) {
+export function ChatWindow({
+  language,
+  onLanguageChange,
+  onToggleSidebar,
+}) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
@@ -136,6 +140,7 @@ export function ChatWindow({ onToggleSidebar }) {
           body: JSON.stringify({
             message: userMessage,
             model,
+            language,
           }),
         }
       )
@@ -457,6 +462,8 @@ export function ChatWindow({ onToggleSidebar }) {
       <Header
         isGenerating={isGenerating}
         isRagBusy={isRagBusy}
+        language={language}
+        onLanguageChange={onLanguageChange}
         onToggleSidebar={
           onToggleSidebar
         }
@@ -560,6 +567,8 @@ export function ChatWindow({ onToggleSidebar }) {
 function Header({
   isGenerating,
   isRagBusy,
+  language,
+  onLanguageChange,
   onToggleSidebar,
 }) {
 
@@ -580,6 +589,16 @@ function Header({
 
           FILES
         </Button>
+
+        <select
+          value={language}
+          onChange={(event) => onLanguageChange(event.target.value)}
+          aria-label="Limba răspunsurilor chatbotului"
+          className="h-8 cursor-pointer border-[3px] border-black bg-[var(--neo-yellow)] px-2 text-xs font-black text-black shadow-[4px_4px_0px_#000] outline-none"
+        >
+          <option value="ro">RO</option>
+          <option value="en">EN</option>
+        </select>
 
 
         <div>

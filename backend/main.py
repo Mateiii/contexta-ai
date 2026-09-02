@@ -319,6 +319,11 @@ def chat():
 
     user_message = data["message"]
 
+    # Romanian is the default. The interface currently offers Romanian and
+    # English, so unknown API values safely fall back to Romanian.
+    language = "en" if data.get("language") == "en" else "ro"
+    response_language = "English" if language == "en" else "Romanian"
+
     model = data.get("model", DEFAULT_MODEL)
 
     if model not in AVAILABLE_MODELS:
@@ -382,11 +387,10 @@ def chat():
             "content": f"""
 Answer the user's question using the provided documents.
 
-LANGUAGE RULE: Respond in Romanian by default. Write the entire response in
-Romanian, even when the question or the documents are in another language.
-Switch to another language only when the user explicitly asks you to do so
-(for example, by requesting an answer or a translation in that language).
-This rule overrides language preferences implied by the conversation history.
+LANGUAGE RULE: Respond entirely in {response_language}. The user selected this
+language in the interface, so follow it even when the question, documents, or
+conversation history use another language. Switch to another language only
+when the user explicitly asks for a translation or an answer in that language.
 Keep code, commands, file names, and exact quotations unchanged when needed.
 
 DOCUMENTS:

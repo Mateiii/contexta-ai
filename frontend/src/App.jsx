@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toast"
 
 export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [language, setLanguage] = useState("ro")
 
   return (
     <main className="neo-app flex min-h-screen items-center justify-center p-5">
@@ -13,7 +14,11 @@ export default function App() {
           collapsed={sidebarCollapsed}
           onCollapse={() => setSidebarCollapsed(true)}
         />
-        <ChatWindow onToggleSidebar={() => setSidebarCollapsed((c) => !c)} />
+        <ChatWindow
+          language={language}
+          onLanguageChange={setLanguage}
+          onToggleSidebar={() => setSidebarCollapsed((c) => !c)}
+        />
       </div>
       <Toaster />
     </main>
