@@ -12,6 +12,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: gemma3:12b
+      OLLAMA_MODELS: gemma3:12b,llama3.2:latest
 
     volumes:
       - ./backend/uploads:/backend/uploads
