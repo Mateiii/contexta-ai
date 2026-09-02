@@ -607,10 +607,6 @@ function Header({
             Contexta
           </h1>
 
-          <p className="text-[0.65rem] font-bold text-black/60">
-            AKA Hababas AI
-          </p>
-
         </div>
 
       </div>
