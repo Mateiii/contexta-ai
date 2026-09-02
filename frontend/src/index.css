@@ -219,12 +219,48 @@ body {
   color: #fff;
 }
 
+/* Toasts render in a portal outside .neo-app, so their neo-brutalist
+   styling lives globally instead of relying on the app's CSS variables. */
+.neo-toast {
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  box-shadow: 6px 6px 0 #000;
+  font-family: "Courier New", Courier, monospace;
+}
+.neo-toast[data-toast-type="loading"] {
+  background: #00f0ff;
+}
+.neo-toast[data-toast-type="success"] {
+  background: #ffee00;
+}
+.neo-toast[data-toast-type="error"] {
+  background: #ff0055;
+  color: #fff;
+}
+.neo-toast[data-toast-type="error"] [data-slot="toast-description"] {
+  color: rgba(255, 255, 255, 0.85);
+}
+.neo-toast-icon {
+  box-shadow: 2px 2px 0 #000;
+}
+.neo-toast[data-toast-type="loading"] .neo-toast-icon {
+  background: #ffee00;
+}
+.neo-toast[data-toast-type="success"] .neo-toast-icon {
+  background: #fff;
+}
+.neo-toast[data-toast-type="error"] .neo-toast-icon {
+  color: #ff0055;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .neo-sidebar-wrap,
   .neo-file-card,
   .neo-message,
   .neo-icon-btn,
-  .neo-delete-btn {
+  .neo-delete-btn,
+  .neo-toast {
     transition-duration: 0.01ms !important;
   }
 }

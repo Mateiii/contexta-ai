@@ -363,6 +363,13 @@ def chat():
             "content": f"""
 Answer the user's question using the provided documents.
 
+LANGUAGE RULE: Respond in Romanian by default. Write the entire response in
+Romanian, even when the question or the documents are in another language.
+Switch to another language only when the user explicitly asks you to do so
+(for example, by requesting an answer or a translation in that language).
+This rule overrides language preferences implied by the conversation history.
+Keep code, commands, file names, and exact quotations unchanged when needed.
+
 DOCUMENTS:
 
 {context}

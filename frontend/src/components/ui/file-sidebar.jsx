@@ -119,7 +119,7 @@ export function FileSidebar({ collapsed, onCollapse }) {
         toast.add({
           title: "Your file is being processed.",
           description: `Please wait for the model to process ${data.filename}`,
-          type: "success",
+          type: "loading",
         })
 
         waitForRagBuild(data.filename)
