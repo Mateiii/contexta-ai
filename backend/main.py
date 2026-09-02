@@ -35,7 +35,18 @@ OLLAMA_HOST = os.getenv(
     "http://localhost:11434"
 )
 
-MODEL = "gemma3:12b"
+AVAILABLE_MODELS = tuple(
+    model.strip()
+    for model in os.getenv(
+        "OLLAMA_MODELS",
+        "gemma3:12b,llama3.2:latest"
+    ).split(",")
+    if model.strip()
+)
+DEFAULT_MODEL = os.getenv(
+    "OLLAMA_MODEL",
+    AVAILABLE_MODELS[0]
+)
 
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md", ".json", ".csv"}
@@ -308,6 +319,14 @@ def chat():
 
     user_message = data["message"]
 
+    model = data.get("model", DEFAULT_MODEL)
+
+    if model not in AVAILABLE_MODELS:
+
+        return jsonify({
+            "error": "Selected model is not available"
+        }), 400
+
     chat_id = data.get(
         "chat_id",
         "default"
@@ -409,7 +428,7 @@ You can also talk about things that are not in the documents, but you must alway
                 return
 
             stream = client.chat(
-                model=MODEL,
+                model=model,
                 messages=messages,
                 stream=True
             )
@@ -496,8 +515,11 @@ def health():
 
         missing = []
 
-        if MODEL not in model_names:
-            missing.append(MODEL)
+        missing.extend(
+            model
+            for model in AVAILABLE_MODELS
+            if model not in model_names
+        )
 
         if not any(
             model.startswith("nomic-embed-text")
@@ -515,7 +537,8 @@ def health():
 
         return jsonify({
             "status": "ok",
-            "model": MODEL,
+            "models": list(AVAILABLE_MODELS),
+            "default_model": DEFAULT_MODEL,
             "embedding_model": "nomic-embed-text",
             "rag_busy": is_rag_busy()
         })

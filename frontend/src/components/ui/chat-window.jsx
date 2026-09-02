@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { ArrowUpIcon, Folder, Square } from "lucide-react"
+import { ArrowUpIcon, ChevronDown, Folder, Square } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -7,6 +7,10 @@ import { MessageList } from "@/components/ui/message-list"
 import { StatusBadge } from "@/components/ui/status-badge"
 
 const BACKEND_URL = "http://localhost:5000"
+const MODELS = [
+  { value: "gemma3:12b", label: "GEMMA 3" },
+  { value: "llama3.2:latest", label: "SKIBIDI" },
+]
 
 function formatTime() {
   return new Date().toLocaleTimeString([], {
@@ -19,6 +23,7 @@ export function ChatWindow({ onToggleSidebar }) {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [model, setModel] = useState(MODELS[0].value)
 
   // True while the backend is rebuilding the RAG.
   const [isRagBusy, setIsRagBusy] = useState(false)
@@ -130,6 +135,7 @@ export function ChatWindow({ onToggleSidebar }) {
 
           body: JSON.stringify({
             message: userMessage,
+            model,
           }),
         }
       )
@@ -510,21 +516,34 @@ export function ChatWindow({ onToggleSidebar }) {
           </Button>
 
         ) : (
+          <div className="flex shrink-0 gap-3.5">
+            <label className="relative">
+              <span className="sr-only">Select model</span>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                disabled={isRagBusy}
+                className="h-10 appearance-none border-[3px] border-black bg-[var(--neo-yellow)] py-0 pl-3 pr-8 text-xs font-black tracking-wide text-black outline-none shadow-[4px_4px_0px_#000] disabled:opacity-50"
+              >
+                {MODELS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2" />
+            </label>
 
-          <Button
-            variant="neo-pink"
-            onClick={handleSend}
-
-            disabled={
-              !canSend
-            }
-
-            className="shrink-0 gap-2 px-5"
-          >
-            SEND
-
-            <ArrowUpIcon className="size-3.5" />
-          </Button>
+            <Button
+              variant="neo-pink"
+              onClick={handleSend}
+              disabled={!canSend}
+              className="gap-2 px-5"
+            >
+              SEND
+              <ArrowUpIcon className="size-3.5" />
+            </Button>
+          </div>
         )}
 
       </div>
